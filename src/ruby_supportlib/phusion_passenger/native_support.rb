@@ -209,7 +209,8 @@ module PhusionPassenger
         return false
       end
 
-      STDERR.puts " [#{library_name}] trying to compile for the current Ruby interpreter..."
+      whoami = `whoami`.strip
+      STDERR.puts " [#{library_name}] trying to compile for the current user (#{whoami}) and Ruby interpreter..."
       STDERR.puts "     (set PASSENGER_COMPILE_NATIVE_SUPPORT_BINARY=0 to disable)"
 
       require 'fileutils'
@@ -310,37 +311,40 @@ module PhusionPassenger
         :unlink_immediately => false)
       options = { :logger => logger }
       begin
-        try_directories(target_dirs, options) do |target_dir|
-          result = nil
+        result = try_directories(target_dirs, options) do |target_dir|
+          make_result = nil
           # Perform the actual compilation in a temporary directory to avoid
           # problems with multiple processes trying to concurrently compile.
           # https://github.com/phusion/passenger/issues/1570
           PhusionPassenger::Utils.mktmpdir("passenger-native-support-") do |tmpdir|
             Dir.chdir(tmpdir) do
-              result =
+              make_result =
                 sh_nonfatal("#{PlatformInfo.ruby_command} #{Shellwords.escape extconf_rb}",
                   options) &&
                 sh_nonfatal("make", options)
-              if result
+              if make_result
                 begin
                   FileUtils.cp_r(".", target_dir)
                 rescue SystemCallError => e
                   log("Error: #{e}")
-                  result = false
+                  make_result = false
                 end
               end
             end
           end
-          if result
+          if make_result
             log "Compilation succesful. The logs are here:"
             log logger.path
             [target_dir, false]
           else
-            log "Warning: compilation didn't succeed. To learn why, read this file:"
-            log logger.path
             [nil, false]
           end
         end
+        if !result
+          log "Warning: compilation didn't succeed. To learn why, read this file:"
+          log logger.path          
+        end
+        return result
       end
     ensure
       logger.close if logger
@@ -348,6 +352,8 @@ module PhusionPassenger
 
     def try_directories(dirs, options = {})
       result = nil
+      whoami = `whoami`.strip
+      log("# current user is: #{whoami}", options)
       dirs.each_with_index do |dir, i|
         begin
           mkdir(dir, options)
