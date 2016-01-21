@@ -209,8 +209,7 @@ module PhusionPassenger
         return false
       end
 
-      whoami = `whoami`.strip
-      STDERR.puts " [#{library_name}] trying to compile for the current user (#{whoami}) and Ruby interpreter..."
+      STDERR.puts " [#{library_name}] trying to compile for the current user (#{current_user_name_or_id}) and Ruby interpreter..."
       STDERR.puts "     (set PASSENGER_COMPILE_NATIVE_SUPPORT_BINARY=0 to disable)"
 
       require 'fileutils'
@@ -222,6 +221,22 @@ module PhusionPassenger
         return load_native_extension("#{target_dir}/#{library_name}")
       else
         return false
+      end
+    end
+
+    # Name of the user under which we are executing, or the id as fallback
+    # N.B. loader_shared_helpers.rb has the same method 
+    def current_user_name_or_id(args = nil)
+      require 'etc' if !defined?(Etc)
+      begin
+        user = Etc.getpwuid(Process.uid)
+      rescue ArgumentError
+        user = nil
+      end
+      if user
+        return user.name
+      else
+        return "##{Process.uid}"
       end
     end
 
@@ -333,7 +348,7 @@ module PhusionPassenger
             end
           end
           if make_result
-            log "Compilation succesful. The logs are here:"
+            log "Compilation successful. The logs are here:"
             log logger.path
             [target_dir, false]
           else
@@ -342,7 +357,7 @@ module PhusionPassenger
         end
         if !result
           log "Warning: compilation didn't succeed. To learn why, read this file:"
-          log logger.path          
+          log logger.path
         end
         return result
       end
@@ -352,8 +367,7 @@ module PhusionPassenger
 
     def try_directories(dirs, options = {})
       result = nil
-      whoami = `whoami`.strip
-      log("# current user is: #{whoami}", options)
+      log("# current user is: #{current_user_name_or_id}", options)
       dirs.each_with_index do |dir, i|
         begin
           mkdir(dir, options)
