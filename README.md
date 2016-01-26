@@ -4,7 +4,7 @@
 
 ## cgroup + chroot support
 
-This fork of (https://github.com/phusion/passenger)[Phusion Passenger] includes support for cgroup assignment and chroot in Apache (*nginx maybe later*).
+This fork of [Phusion Passenger](https://github.com/phusion/passenger) includes support for cgroup assignment and chroot in Apache (*nginx maybe later*).
 
 ### cgroups
 
