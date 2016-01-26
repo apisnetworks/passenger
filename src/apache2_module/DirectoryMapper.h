@@ -43,6 +43,10 @@
 #include <httpd.h>
 #include <http_core.h>
 
+#if HTTP_VERSION(AP_SERVER_MAJORVERSION_NUMBER, AP_SERVER_MINORVERSION_NUMBER) < 20043
+	#define ap_context_document_root ap_document_root
+#endif
+
 namespace Passenger {
 
 using namespace std;
@@ -121,7 +125,25 @@ private:
 		TRACE_POINT();
 
 		/* Determine the document root without trailing slashes. */
-		StaticString docRoot = ap_document_root(r);
+		//StaticString docRoot = ap_document_root(r);
+		/*
+		 * Module documentation states that directory below public examined
+		 * whereas ap_document_root() uses DocumentRoot directive. Traverse
+		 * 2 directories down to get path
+		 */
+		string docRoot = r->filename;
+		int ctr, i=docRoot.size();
+		for (ctr=0; i > 0; i--) {
+			if (docRoot[i] == '/') {
+				ctr++;
+				break;
+			}
+		}
+		if (ctr) {
+			docRoot = docRoot.substr(0,i);
+		} else {
+			docRoot = ap_context_document_root(r);
+		}
 		if (docRoot.size() > 1 && docRoot[docRoot.size() - 1] == '/') {
 			docRoot = docRoot.substr(0, docRoot.size() - 1);
 		}
@@ -153,14 +175,14 @@ private:
 					baseURI != NULL || config->resolveSymlinksInDocRoot == DirConfig::ENABLED,
 					&appRoot);
 			} else {
-				appRoot = config->appRoot;
+				appRoot = adaptRoot(config->appRoot);
 				appType = detector.checkAppRoot(appRoot);
 			}
 		} else {
 			if (config->appRoot == NULL) {
 				appType = PAT_NONE;
 			} else {
-				appRoot = config->appRoot;
+				appRoot = adaptRoot(config->appRoot);
 				appType = getAppType(config->appType);
 			}
 		}
@@ -169,6 +191,22 @@ private:
 		this->baseURI = baseURI;
 		this->appType = appType;
 		autoDetectionDone = true;
+	}
+
+	string adaptRoot(const StaticString appRoot) {
+		string newRoot;
+		// http prefix unnecessary on newer platforms
+		// filter this out if present
+		if (!startsWith(appRoot, "/home/virtual/site")) {
+			// SITE_ROOT is a special env variable passed to requests indicating
+			// the root in which an account resides
+			const char* site_root = apr_table_get(r->subprocess_env, "SITE_ROOT");
+			if (site_root != NULL) {
+				newRoot.append(site_root);
+			}
+		}
+		newRoot.append(appRoot);
+		return newRoot;
 	}
 
 public:

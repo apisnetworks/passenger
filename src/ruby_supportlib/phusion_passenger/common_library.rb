@@ -334,6 +334,10 @@ COMMON_LIBRARY = CommonLibraryBuilder.new do
   define_component 'UnionStationFilterSupport.o',
     :source   => 'UnionStationFilterSupport.cpp',
     :category => :union_station_filter
+  define_component 'Utils/Cgroup.o',
+  	:source   => 'Utils/Cgroup.cpp',
+	:category => :base,
+	:optimize => :very_heavy
 end
 
 # A subset of the objects are linked to the Nginx binary. This defines

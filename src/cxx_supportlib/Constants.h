@@ -149,6 +149,8 @@
 
 	#define SHORT_PROGRAM_NAME "Passenger"
 
+	#define SITE_CHROOT_ENV "SITE_ROOT"
+
 	#define SUPPORT_URL "https://www.phusionpassenger.com/documentation_and_support"
 
 	#define USER_NAMESPACE_DIRNAME ".passenger"

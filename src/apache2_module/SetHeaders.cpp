@@ -155,3 +155,7 @@
 			sizeof("!~PASSENGER_FORCE_MAX_CONCURRENT_REQUESTS_PER_PROCESS") - 1), config->forceMaxConcurrentRequestsPerProcess);
 	
 
+	
+		addHeader(result, StaticString("!~PASSENGER_CGROUP",
+			sizeof("!~PASSENGER_CGROUP") - 1), config->cgroup);
+

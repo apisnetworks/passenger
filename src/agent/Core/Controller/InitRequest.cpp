@@ -379,6 +379,8 @@ Controller::createNewPoolOptions(Client *client, Request *req,
 	fillPoolOption(req, options.startupFile, "!~PASSENGER_STARTUP_FILE");
 	fillPoolOption(req, options.loadShellEnvvars, "!~PASSENGER_LOAD_SHELL_ENVVARS");
 	fillPoolOption(req, options.raiseInternalError, "!~PASSENGER_RAISE_INTERNAL_ERROR");
+	fillPoolOption(req, options.cgroup, "!~PASSENGER_CGROUP");
+	fillPoolOption(req, options.preexecChroot, "!~PASSENGER_PREEXEC_CHROOT");
 	/******************/
 
 	boost::shared_ptr<Options> optionsCopy = boost::make_shared<Options>(options);

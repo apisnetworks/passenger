@@ -237,6 +237,20 @@
 		"Force Passenger to believe that an application process can handle the given number of concurrent requests per process"),
 
 	
+	AP_INIT_TAKE1("PassengerCgroup",
+		(Take1Func) cmd_passenger_cgroup,
+		NULL,
+		RSRC_CONF,
+		"cgroup group to place processes in."),
+
+	
+	AP_INIT_TAKE1("Cgroup",
+		(Take1Func) cmd_passenger_cgroup,
+		NULL,
+		RSRC_CONF,
+		"cgroup group to place processes in."),
+
+	
 	AP_INIT_TAKE1("RailsEnv",
 		(Take1Func) cmd_passenger_app_env,
 		NULL,

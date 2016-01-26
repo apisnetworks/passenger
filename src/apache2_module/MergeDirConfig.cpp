@@ -236,3 +236,9 @@
 			add->forceMaxConcurrentRequestsPerProcess;
 	
 
+	
+		config->cgroup =
+			(add->cgroup == NULL) ?
+			base->cgroup :
+			add->cgroup;
+

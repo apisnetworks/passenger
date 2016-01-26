@@ -228,9 +228,21 @@ APACHE2_DIRECTORY_CONFIGURATION_OPTIONS = [
     :desc     => "Force #{SHORT_PROGRAM_NAME} to believe that an application process " \
                  "can handle the given number of concurrent requests per process"
   },
+  {
+  	:name	  => "PassengerCgroup",
+	:type	  => :string,
+	:context  => ["RSRC_CONF"],
+	:desc	  => "cgroup group to place processes in."
+  },
+
 
   ##### Aliases #####
-
+  {
+  	:name => "Cgroup",
+	:type => :string,
+	:desc => "Backwards compatibility with mod_cgroup.",
+	:alias_for => "PassengerCgroup"
+  },
   {
     :name => "RailsEnv",
     :type => :string,

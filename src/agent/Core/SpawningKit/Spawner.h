@@ -89,6 +89,7 @@
 #include <Utils/IOUtils.h>
 #include <Utils/StrIntUtils.h>
 #include <Utils/ProcessMetricsCollector.h>
+#include <Utils/Cgroup.h>
 #include <Core/SpawningKit/Config.h>
 #include <Core/SpawningKit/Options.h>
 #include <Core/SpawningKit/Result.h>
@@ -208,7 +209,6 @@ protected:
 		vector<string> appRootPathsInsideChroot;
 
 		UserSwitchingInfo userSwitching;
-
 		// Other information
 		string codeRevision;
 	};
@@ -730,7 +730,8 @@ protected:
 		} else {
 			info.chrootDir = absolutizePath(options.preexecChroot);
 		}
-		if (info.appRoot != info.chrootDir && startsWith(info.appRoot, info.chrootDir + "/")) {
+		// startsWith -> !startsWith, bitrot, info.chrootDir / will map to //
+		if (info.appRoot != info.chrootDir && !startsWith(info.appRoot, "/" + info.chrootDir.substr(1))) {
 			SpawnException e("Invalid configuration: '" + info.chrootDir +
 				"' has been configured as the chroot jail, but the application " +
 				"root directory '" + info.appRoot + "' is not a subdirectory of the " +
@@ -768,7 +769,6 @@ protected:
 			}
 			info.appRootPathsInsideChroot.push_back(path);
 		}
-
 		assert(info.appRootPathsInsideChroot.back() == info.appRootInsideChroot);
 	}
 
@@ -944,6 +944,28 @@ protected:
 			// http://www.opensource.apple.com/source/shell_cmds/shell_cmds-170/pwd/pwd.c
 			setenv("PWD", info.appRoot.c_str(), 1);
 		}
+	}
+
+	void prepareControlGroup(SpawnPreparationInfo &info, const string cgname) {
+		struct cgroup *tmp;
+		if (cgname == "") {
+			return;
+		}
+
+		if (NULL == (tmp = initializeControlGroup(cgname.c_str()))) {
+			fprintf(stderr,"no cgroup set!");
+			return;
+		}
+		info.userSwitching.mygroup = tmp;
+		return;
+	}
+
+	void releaseControlGroupFromSpawn(SpawnPreparationInfo &info) {
+		UserSwitchingInfo *user = &info.userSwitching;
+		if (NULL != user->mygroup) {
+			//SfreeControlGroup(&user.mygroup);
+		}
+		return;
 	}
 
 	void setChroot(const SpawnPreparationInfo &info) {

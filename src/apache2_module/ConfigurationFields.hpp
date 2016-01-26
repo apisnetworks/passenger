@@ -79,6 +79,8 @@ struct GeneratedDirConfigPart {
 	const char *appGroupName;
 	/** Force specific application type. */
 	const char *appType;
+	/** cgroup group to place processes in. */
+	const char *cgroup;
 	/** The group that Ruby applications must run as. */
 	const char *group;
 	/** Settings file for (non-bundled) Meteor apps. */

@@ -110,7 +110,11 @@ private:
 		}
 		command.push_back(agentFilename);
 		command.push_back("spawn-preparer");
-		command.push_back(preparation.appRoot);
+		if (options.preexecChroot.empty()) {
+			command.push_back(preparation.appRoot);
+		} else {
+			command.push_back(preparation.appRootInsideChroot);
+		}
 		command.push_back(serializeEnvvarsFromPoolOptions(options));
 		command.push_back(preloaderCommand[0]);
 		// Note: do not try to set a process title here.
@@ -213,7 +217,6 @@ private:
 		DebugDirPtr debugDir = boost::make_shared<DebugDir>(preparation.userSwitching.uid,
 			preparation.userSwitching.gid);
 		pid_t pid;
-
 		pid = syscalls::fork();
 		if (pid == 0) {
 			setenv("PASSENGER_DEBUG_DIR", debugDir->getPath().c_str(), 1);
@@ -227,11 +230,13 @@ private:
 			dup2(adminSocketCopy, 1);
 			dup2(errorPipeCopy, 2);
 			closeAllFileDescriptors(2);
+			prepareControlGroup(preparation, options.cgroup);
 			setChroot(preparation);
 			switchUser(preparation);
 			setWorkingDirectory(preparation);
 			execvp(command[0].c_str(), (char * const *) args.get());
 
+			releaseControlGroupFromSpawn(preparation);
 			int e = errno;
 			printf("!> Error\n");
 			printf("!> \n");

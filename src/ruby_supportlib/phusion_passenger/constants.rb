@@ -111,6 +111,7 @@ module PhusionPassenger
     RPM_DEV_PACKAGE           = "passenger-devel"
     RPM_APACHE_MODULE_PACKAGE = "mod_passenger"
     RPM_NGINX_PACKAGE         = "nginx"
+    SITE_CHROOT_ENV           = "SITE_ROOT"
   end
 
   SharedConstants.constants.each do |name|

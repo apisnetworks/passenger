@@ -36,6 +36,7 @@
 #include <oxt/system_calls.hpp>
 #include <Exceptions.h>
 #include <Utils.h>
+#include <Utils/Cgroup.h>
 #include <Core/SpawningKit/Options.h>
 
 namespace Passenger {
@@ -44,8 +45,6 @@ namespace SpawningKit {
 using namespace std;
 using namespace boost;
 using namespace oxt;
-
-
 struct UserSwitchingInfo {
 	bool enabled;
 	string username;
@@ -56,6 +55,7 @@ struct UserSwitchingInfo {
 	gid_t gid;
 	int ngroups;
 	shared_array<gid_t> gidset;
+	struct cgroup *mygroup;
 };
 
 inline UserSwitchingInfo
@@ -90,6 +90,7 @@ prepareUserSwitching(const Options &options) {
 		info.uid = geteuid();
 		info.gid = getegid();
 		info.ngroups = 0;
+		info.mygroup = (struct cgroup *)NULL;
 		return info;
 	}
 
@@ -240,6 +241,7 @@ prepareUserSwitching(const Options &options) {
 	info.shell = userInfo->pw_shell;
 	info.uid = userInfo->pw_uid;
 	info.gid = groupId;
+	info.mygroup = (struct cgroup*) NULL;
 	#if !defined(HAVE_GETGROUPLIST) && (defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__))
 		#define HAVE_GETGROUPLIST
 	#endif
