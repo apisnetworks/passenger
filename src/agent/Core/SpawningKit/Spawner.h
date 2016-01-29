@@ -963,7 +963,7 @@ protected:
 	void releaseControlGroupFromSpawn(SpawnPreparationInfo &info) {
 		UserSwitchingInfo *user = &info.userSwitching;
 		if (NULL != user->mygroup) {
-			//SfreeControlGroup(&user.mygroup);
+			//freeControlGroup(&user.mygroup);
 		}
 		return;
 	}

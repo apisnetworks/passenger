@@ -46,10 +46,6 @@ namespace Passenger {
     setControlGroup(const char *cgname, struct cgroup *mygroup) {
         int ret;
         if (NULL == (mygroup = cgroup_new_cgroup(cgname))) {
-            return 1;
-        }
-
-        if (NULL == (mygroup = cgroup_new_cgroup(cgname))) {
             fprintf(stderr, "*** ERROR ***: cannot allocate cgroup %s resources",
                     cgname
             );
@@ -83,12 +79,13 @@ namespace Passenger {
         }
 
 
-        if (0 != setControlGroup(cgmount.c_str(), mygroup)) {
+        /*if (0 != setControlGroup(cgmount.c_str(), mygroup)) {
             // cleanup?
-            cgroup_free(&mygroup);
             return NULL;
-        }
-        return mygroup;
+        }*/
+        cgroup_free(&mygroup);
+
+        return 0;
     }
 
 
