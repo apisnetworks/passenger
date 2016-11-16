@@ -197,3 +197,17 @@ AP_INIT_TAKE1("RailsSpawnMethod",
 	NULL,
 	RSRC_CONF,
 	"The spawn method to use."),
+	AP_INIT_TAKE1("PassengerCgroup",
+		(Take1Func) cmd_passenger_cgroup,
+		NULL,
+		RSRC_CONF,
+		"cgroup group to place processes in."),
+
+	
+	AP_INIT_TAKE1("Cgroup",
+		(Take1Func) cmd_passenger_cgroup,
+		NULL,
+		RSRC_CONF,
+		"cgroup group to place processes in."),
+
+	

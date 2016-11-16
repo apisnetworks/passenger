@@ -983,6 +983,8 @@ private:
 		// Add environment variables.
 
 		const apr_array_header_t *env_arr;
+		addHeader(result, P_STATIC_STRING("!~PASSENGER_PREEXEC_CHROOT"), lookupEnv(r, SITE_CHROOT_ENV ));
+
 		env_arr = apr_table_elts(r->subprocess_env);
 
 		if (env_arr->nelts > 0) {
@@ -1001,7 +1003,6 @@ private:
 				}
 				envvarsData.append("\0", 1);
 			}
-
 			envvarsBase64Data = (char *) malloc(modp_b64_encode_len(
 				envvarsData.size()));
 			if (envvarsBase64Data == NULL) {

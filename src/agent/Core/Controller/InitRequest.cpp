@@ -379,6 +379,8 @@ Controller::createNewPoolOptions(Client *client, Request *req,
 	fillPoolOption(req, options.abortWebsocketsOnProcessShutdown, "!~PASSENGER_ABORT_WEBSOCKETS_ON_PROCESS_SHUTDOWN");
 	fillPoolOption(req, options.forceMaxConcurrentRequestsPerProcess, "!~PASSENGER_FORCE_MAX_CONCURRENT_REQUESTS_PER_PROCESS");
 	fillPoolOption(req, options.restartDir, "!~PASSENGER_RESTART_DIR");
+	fillPoolOption(req, options.cgroup, "!~PASSENGER_CGROUP");
+	fillPoolOption(req, options.preexecChroot, "!~PASSENGER_PREEXEC_CHROOT");
 	fillPoolOption(req, options.startupFile, "!~PASSENGER_STARTUP_FILE");
 	fillPoolOption(req, options.loadShellEnvvars, "!~PASSENGER_LOAD_SHELL_ENVVARS");
 	fillPoolOption(req, options.fileDescriptorUlimit, "!~PASSENGER_APP_FILE_DESCRIPTOR_ULIMIT");

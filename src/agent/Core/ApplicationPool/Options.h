@@ -80,7 +80,7 @@ private:
 	template<typename OptionsClass, typename StaticStringClass>
 	static vector<StaticStringClass *> getStringFields(OptionsClass &options) {
 		vector<StaticStringClass *> result;
-		result.reserve(20);
+		result.reserve(21);
 
 		result.push_back(&options.appRoot);
 		result.push_back(&options.appGroupName);
@@ -118,6 +118,7 @@ private:
 		result.push_back(&options.uri);
 		result.push_back(&options.unionStationKey);
 
+		result.push_back(&options.cgroup);
 		return result;
 	}
 
@@ -444,6 +445,11 @@ public:
 	 */
 	bool noop;
 
+	/**
+	 * Control group to locate processes under
+	 */
+	StaticString cgroup;
+
 	/*-----------------*/
 	/*-----------------*/
 
@@ -596,11 +602,26 @@ public:
 		int fields = ALL_OPTIONS) const
 	{
 		if (fields & SPAWN_OPTIONS) {
-			appendKeyValue (vec, "app_root",           appRoot);
+			/**
+			 * Adjust startup_file and app_root values passed
+			 * to helper scripts if chroot present; these
+			 * paths will be reflected post-chroot
+			 */
+			if (!preexecChroot.empty()) {
+				const string chrootAppRoot = appRoot.substr(preexecChroot.size());
+				appendKeyValue (vec, "app_root",
+								chrootAppRoot);
+				appendKeyValue (vec, "startup_file",
+								absolutizePath(getStartupFile(), absolutizePath(chrootAppRoot)));
+			} else {
+				appendKeyValue (vec, "app_root",
+								appRoot);
+				appendKeyValue (vec, "startup_file",
+								absolutizePath(getStartupFile(), absolutizePath(appRoot)));
+			}
 			appendKeyValue (vec, "app_group_name",     getAppGroupName());
 			appendKeyValue (vec, "app_type",           appType);
 			appendKeyValue (vec, "start_command",      getStartCommand(resourceLocator));
-			appendKeyValue (vec, "startup_file",       absolutizePath(getStartupFile(), absolutizePath(appRoot)));
 			appendKeyValue (vec, "process_title",      getProcessTitle());
 			appendKeyValue2(vec, "log_level",          logLevel);
 			appendKeyValue3(vec, "start_timeout",      startTimeout);
@@ -625,7 +646,7 @@ public:
 			appendKeyValue4(vec, "debugger",           debugger);
 			appendKeyValue4(vec, "analytics",          analytics);
 			appendKeyValue (vec, "api_key",            apiKey);
-
+			appendKeyValue (vec, "cgroup",             cgroup);
 			/*********************************/
 		}
 		if (fields & PER_GROUP_POOL_OPTIONS) {

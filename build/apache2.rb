@@ -103,7 +103,8 @@ file(APACHE2_TARGET => dependencies) do
       APACHE2_MODULE_COMMON_LIBRARIES,
       APACHE2_MODULE_BOOST_OXT_LINKARG,
       PlatformInfo.apache2_module_cxx_ldflags,
-      PlatformInfo.portability_cxx_ldflags
+      PlatformInfo.portability_cxx_ldflags,
+	  '-lcgroup'
     ]
   )
 end

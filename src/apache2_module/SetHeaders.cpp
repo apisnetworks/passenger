@@ -109,3 +109,7 @@ addHeader(r, result, StaticString("!~PASSENGER_FORCE_MAX_CONCURRENT_REQUESTS_PER
 addHeader(r, result, StaticString("!~PASSENGER_LVE_MIN_UID",
 		sizeof("!~PASSENGER_LVE_MIN_UID") - 1),
 	config->lveMinUid);
+	
+		addHeader(result, StaticString("!~PASSENGER_CGROUP",
+			sizeof("!~PASSENGER_CGROUP") - 1), config->cgroup);
+

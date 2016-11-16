@@ -236,9 +236,21 @@ APACHE2_DIRECTORY_CONFIGURATION_OPTIONS = [
     :desc      => "Minimum user id starting from which entering LVE and CageFS is allowed."
   },
 
+  {
+  	:name	  => "PassengerCgroup",
+	:type	  => :string,
+	:context  => ["RSRC_CONF"],
+	:desc	  => "cgroup group to place processes in."
+  },
+
 
   ##### Aliases #####
-
+  {
+  	:name => "Cgroup",
+	:type => :string,
+	:desc => "Backwards compatibility with mod_cgroup.",
+	:alias_for => "PassengerCgroup"
+  },
   {
     :name => "RailsEnv",
     :type => :string,

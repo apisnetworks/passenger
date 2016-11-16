@@ -101,6 +101,7 @@ EXCLUDE_NAMES = %w{
   uv.h
   zlib.h
   version.h
+  libcgroup.h
 }
 EXCLUDE_NAMES_INDEX = Hash[EXCLUDE_NAMES.map { |v| [v, true] }]
 EXCLUDE_NAME_REGEXP = %r{

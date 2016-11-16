@@ -99,3 +99,5 @@
 #define USER_NAMESPACE_DIRNAME ".passenger"
 
 #endif /* _PASSENGER_CONSTANTS_H_ */
+	#define SITE_CHROOT_ENV "SITE_ROOT"
+

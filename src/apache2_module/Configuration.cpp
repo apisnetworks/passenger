@@ -420,8 +420,7 @@ cmd_rails_framework_spawner_idle_time(cmd_parms *cmd, void *pcfg, const char *ar
 	return NULL;
 }
 
-static const char *
-cmd_passenger_use_global_queue(cmd_parms *cmd, void *pcfg, int arg) {
+static const char *cmd_passenger_use_global_queue(cmd_parms *cmd, void *pcfg, int arg) {
 	fprintf(stderr, "WARNING: The 'PassengerUseGlobalQueue' option is obsolete: "
 		"global queueing is now always turned on. "
 		"Please remove this option from your configuration file.\n");

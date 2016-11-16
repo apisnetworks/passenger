@@ -81,6 +81,8 @@ struct GeneratedDirConfigPart {
 	Threeway stickySessions;
 
 	/*
+	/** cgroup group to place processes in. */
+	const char *cgroup;
 	 * The cookie name to use for sticky sessions.
 	 */
 	Threeway stickySessionsCookieName;
