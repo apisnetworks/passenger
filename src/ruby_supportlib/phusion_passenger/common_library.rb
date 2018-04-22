@@ -1,5 +1,5 @@
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2012-2015 Phusion Holding B.V.
+#  Copyright (c) 2012-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -149,18 +149,18 @@ private
       optimize.sub!(/-flto/, "")
     end
 
-    extra_compiler_flags = "#{extra_compiler_flags} #{options[:cflags]}".strip
-
     define_c_or_cxx_object_compilation_task(
       object_file,
       source_file,
-      :include_paths => CXX_SUPPORTLIB_INCLUDE_PATHS,
-      :flags => [
-        LIBEV_CFLAGS,
-        LIBUV_CFLAGS,
-        optimize,
-        extra_compiler_flags
-      ]
+      lambda { {
+        :include_paths => CXX_SUPPORTLIB_INCLUDE_PATHS,
+        :flags => [
+          libev_cflags,
+          libuv_cflags,
+          optimize,
+          "#{maybe_eval_lambda(extra_compiler_flags)} #{options[:cflags]}".strip
+        ]
+      } }
     )
   end
 
@@ -267,12 +267,18 @@ end
 
 
 COMMON_LIBRARY = CommonLibraryBuilder.new do
-  define_component 'Logging.o',
-    :source   => 'Logging.cpp',
+  define_component 'LoggingKit.o',
+    :source   => 'LoggingKit/Implementation.cpp',
     :category => :base,
-    :optimize => :light
+    :optimize => :very_heavy
   define_component 'Exceptions.o',
     :source   => 'Exceptions.cpp',
+    :category => :base
+  define_component 'ProcessManagement/Spawn.o',
+    :source   => 'ProcessManagement/Spawn.cpp',
+    :category => :base
+  define_component 'ProcessManagement/Utils.o',
+    :source   => 'ProcessManagement/Utils.cpp',
     :category => :base
   define_component 'Utils/SystemTime.o',
     :source   => 'Utils/SystemTime.cpp',
@@ -291,9 +297,18 @@ COMMON_LIBRARY = CommonLibraryBuilder.new do
     :source   => 'Utils/IOUtils.cpp',
     :optimize => :light,
     :category => :base
+  define_component 'Utils/Hasher.o',
+    :source   => 'Utils/Hasher.cpp',
+    :category => :base,
+    :optimize => :very_heavy
   define_component 'Utils.o',
     :source   => 'Utils.cpp',
     :category => :base
+  define_component 'jsoncpp.o',
+    :source   => 'vendor-modified/jsoncpp/jsoncpp.cpp',
+    :category => :base,
+    :optimize => true
+
   define_component 'Crypto.o',
     :source   => 'Crypto.cpp',
     :category => :other,
@@ -326,35 +341,32 @@ COMMON_LIBRARY = CommonLibraryBuilder.new do
   define_component 'DataStructures/LString.o',
     :source   => 'DataStructures/LString.cpp',
     :category => :other
-
-  define_component 'Utils/Hasher.o',
-    :source   => 'Utils/Hasher.cpp',
-    :category => :other,
-    :optimize => :very_heavy
   define_component 'AppTypes.o',
     :source   => 'AppTypes.cpp',
     :category => :other
 
-  define_component 'jsoncpp.o',
-    :source   => 'vendor-modified/jsoncpp/jsoncpp.cpp',
-    :category => :json,
-    :optimize => true
   define_component 'vendor-modified/modp_b64.o',
     :source   => 'vendor-modified/modp_b64.cpp',
-    :category => :bas64,
+    :category => :base64,
     :optimize => true,
     :strict_aliasing => false
   define_component 'vendor-modified/modp_b64_strict_aliasing.o',
     :source   => 'vendor-modified/modp_b64_strict_aliasing.cpp',
-    :category => :bas64,
+    :category => :base64,
     :optimize => true
   define_component 'UnionStationFilterSupport.o',
     :source   => 'UnionStationFilterSupport.cpp',
     :category => :union_station_filter
+<<<<<<< HEAD
   define_component 'Utils/Cgroup.o',
   	:source   => 'Utils/Cgroup.cpp',
 	:category => :base,
 	:optimize => :very_heavy
+=======
+  define_component 'ProcessManagement/Ruby.o',
+    :source   => 'ProcessManagement/Ruby.cpp',
+    :category => :process_management_ruby
+>>>>>>> release-5.1.12
 end
 
 # A subset of the objects are linked to the Nginx binary. This defines

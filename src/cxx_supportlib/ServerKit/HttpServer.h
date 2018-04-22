@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2014-2016 Phusion Holding B.V.
+ *  Copyright (c) 2014-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -35,7 +35,7 @@
 #include <cmath>
 #include <cassert>
 #include <pthread.h>
-#include <Logging.h>
+#include <LoggingKit/LoggingKit.h>
 #include <ServerKit/Server.h>
 #include <ServerKit/HttpClient.h>
 #include <ServerKit/HttpRequest.h>
@@ -60,6 +60,47 @@ extern const char DEFAULT_INTERNAL_SERVER_ERROR_RESPONSE[];
 extern const unsigned int DEFAULT_INTERNAL_SERVER_ERROR_RESPONSE_SIZE;
 
 
+class HttpServerSchema: public BaseServerSchema {
+private:
+	void initialize() {
+		using namespace ConfigKit;
+
+		add("request_freelist_limit", UINT_TYPE, OPTIONAL, 1024);
+	}
+
+public:
+	HttpServerSchema()
+		: BaseServerSchema(true)
+	{
+		initialize();
+		finalize();
+	}
+
+	HttpServerSchema(bool _subclassing)
+		: BaseServerSchema(true)
+	{
+		initialize();
+	}
+};
+
+struct HttpServerConfigRealization {
+	unsigned int requestFreelistLimit;
+
+	HttpServerConfigRealization(const ConfigKit::Store &config)
+		: requestFreelistLimit(config["request_freelist_limit"].asUInt())
+		{ }
+
+	void swap(HttpServerConfigRealization &other) BOOST_NOEXCEPT_OR_NOTHROW {
+		std::swap(requestFreelistLimit, other.requestFreelistLimit);
+	}
+};
+
+struct HttpServerConfigChangeRequest {
+	BaseServerConfigChangeRequest forParent;
+	boost::scoped_ptr<HttpServerConfigRealization> configRlz;
+};
+
+
 template< typename DerivedServer, typename Client = HttpClient<HttpRequest> >
 class HttpServer: public BaseServer<DerivedServer, Client> {
 public:
@@ -67,8 +108,10 @@ public:
 	typedef HttpRequestRef<DerivedServer, Request> RequestRef;
 	STAILQ_HEAD(FreeRequestList, Request);
 
+	typedef HttpServerConfigChangeRequest ConfigChangeRequest;
+
 	FreeRequestList freeRequests;
-	unsigned int freeRequestCount, requestFreelistLimit;
+	unsigned int freeRequestCount;
 	unsigned long totalRequestsBegun, lastTotalRequestsBegun;
 	double requestBeginSpeed1m, requestBeginSpeed1h;
 
@@ -100,6 +143,11 @@ private:
 	};
 
 	friend class RequestHooksImpl;
+
+
+	/***** Configuration *****/
+
+	HttpServerConfigRealization configRlz;
 
 
 	/***** Working state *****/
@@ -172,7 +220,7 @@ private:
 	}
 
 	bool addRequestToFreelist(Request *request) {
-		if (freeRequestCount < requestFreelistLimit) {
+		if (freeRequestCount < configRlz.requestFreelistLimit) {
 			STAILQ_INSERT_HEAD(&freeRequests, request, nextRequest.freeRequest);
 			freeRequestCount++;
 			request->refcount.store(1, boost::memory_order_relaxed);
@@ -832,13 +880,13 @@ protected:
 		return false;
 	}
 
-	virtual PassengerLogLevel getClientOutputErrorDisconnectionLogLevel(
+	virtual LoggingKit::Level getClientOutputErrorDisconnectionLogLevel(
 		Client *client, int errcode) const
 	{
 		if (errcode == EPIPE || errcode == ECONNRESET) {
-			return LVL_INFO;
+			return LoggingKit::INFO;
 		} else {
-			return LVL_WARN;
+			return LoggingKit::WARN;
 		}
 	}
 
@@ -926,14 +974,15 @@ protected:
 	}
 
 public:
-	HttpServer(Context *context)
-		: ParentClass(context),
+	HttpServer(Context *context, const HttpServerSchema &schema,
+		const Json::Value &initialConfig = Json::Value())
+		: ParentClass(context, schema, initialConfig),
 		  freeRequestCount(0),
-		  requestFreelistLimit(1024),
 		  totalRequestsBegun(0),
 		  lastTotalRequestsBegun(0),
 		  requestBeginSpeed1m(-1),
 		  requestBeginSpeed1h(-1),
+		  configRlz(ParentClass::config),
 		  headerParserStatePool(16, 256)
 	{
 		STAILQ_INIT(&freeRequests);
@@ -942,7 +991,7 @@ public:
 
 	/***** Server management *****/
 
-	virtual void compact(int logLevel = LVL_NOTICE) {
+	virtual void compact(LoggingKit::Level logLevel = LoggingKit::NOTICE) {
 		ParentClass::compact();
 		unsigned int count = freeRequestCount;
 
@@ -966,7 +1015,7 @@ public:
 
 	/***** Request manipulation *****/
 
-		/** Increase request reference count. */
+	/** Increase request reference count. */
 	void refRequest(Request *req, const char *file, unsigned int line) {
 		int oldRefcount = req->refcount.fetch_add(1, boost::memory_order_relaxed);
 		SKC_TRACE_WITH_POS(static_cast<Client *>(req->client), 3, file, line,
@@ -1178,17 +1227,20 @@ public:
 
 	/***** Configuration and introspection *****/
 
-	virtual void configure(const Json::Value &doc) {
-		ParentClass::configure(doc);
-		if (doc.isMember("request_freelist_limit")) {
-			requestFreelistLimit = doc["request_freelist_limit"].asUInt();
+	bool prepareConfigChange(const Json::Value &updates,
+		vector<ConfigKit::Error> &errors, HttpServerConfigChangeRequest &req)
+	{
+		if (ParentClass::prepareConfigChange(updates, errors, req.forParent)) {
+			req.configRlz.reset(new HttpServerConfigRealization(*req.forParent.config));
 		}
+		return errors.empty();
 	}
 
-	virtual Json::Value getConfigAsJson() const {
-		Json::Value doc = ParentClass::getConfigAsJson();
-		doc["request_freelist_limit"] = requestFreelistLimit;
-		return doc;
+	void commitConfigChange(HttpServerConfigChangeRequest &req)
+		BOOST_NOEXCEPT_OR_NOTHROW
+	{
+		ParentClass::commitConfigChange(req.forParent);
+		configRlz.swap(*req.configRlz);
 	}
 
 	virtual Json::Value inspectStateAsJson() const {

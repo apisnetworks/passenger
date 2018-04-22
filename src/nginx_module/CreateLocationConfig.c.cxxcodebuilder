@@ -1,5 +1,5 @@
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2010-2016 Phusion Holding B.V.
+#  Copyright (c) 2010-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -23,13 +23,13 @@
 #  THE SOFTWARE.
 
 # This file uses the cxxcodebuilder API. Learn more at:
-# https://github.com/phusion/passenger/cxxcodebuilder
+# https://github.com/phusion/cxxcodebuilder
 
 require 'phusion_passenger/nginx/config_options'
 
 def main
   set_indent_string '    '
-  comment copyright_header_for(__FILE__)
+  comment copyright_header_for(__FILE__), 1
 
   separator
 
@@ -83,6 +83,7 @@ def filter_eligible_options(options)
     option[:alias_for] ||
       option.fetch(:field, true).nil? ||
       option[:field].to_s =~ /\./ ||
+      option[:struct] == 'NGX_HTTP_MAIN_CONF_OFFSET' ||
       option[:auto_generate_nginx_create_code] == false
   end
 end

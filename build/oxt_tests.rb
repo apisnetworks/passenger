@@ -1,5 +1,5 @@
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2010-2015 Phusion Holding B.V.
+#  Copyright (c) 2010-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -38,11 +38,13 @@ TEST_OXT_OBJECTS.each_pair do |object, source|
   define_cxx_object_compilation_task(
     object,
     source,
-    :include_paths => [
-      "test/support",
-      *CXX_SUPPORTLIB_INCLUDE_PATHS
-    ],
-    :flags => TEST_COMMON_CFLAGS
+    lambda { {
+      :include_paths => [
+        "test/support",
+        *CXX_SUPPORTLIB_INCLUDE_PATHS
+      ],
+      :flags => TEST_COMMON_CFLAGS
+    } }
   )
 end
 

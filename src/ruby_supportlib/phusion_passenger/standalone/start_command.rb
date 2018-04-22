@@ -1,5 +1,5 @@
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2010-2016 Phusion Holding B.V.
+#  Copyright (c) 2010-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -98,7 +98,7 @@ module PhusionPassenger
         # If you add or change an option, make sure to update the following places too:
         # - src/ruby_supportlib/phusion_passenger/standalone/start_command/builtin_engine.rb,
         #   function #build_daemon_controller_options
-        # - resources/templates/config/standalone.erb
+        # - resources/templates/standalone/config.erb
         OptionParser.new do |opts|
           defaults = CONFIG_DEFAULTS
           nl = "\n" + ' ' * 37
@@ -177,6 +177,9 @@ module PhusionPassenger
         if @options[:ssl] && !@options[:ssl_certificate_key]
           abort "You specified --ssl. Please specify --ssl-certificate-key as well."
         end
+        if @options[:nginx_tarball] && !@options_without_defaults[:nginx_version]
+          abort "You specified --nginx-tarball. Please also specify which Nginx version the tarball contains using --nginx-version."
+        end
         if @options[:engine] != "builtin" && @options[:engine] != "nginx"
           abort "You've specified an invalid value for --engine. The only values allowed are: builtin, nginx."
         end
@@ -218,10 +221,10 @@ module PhusionPassenger
         else
           nginx_name = "nginx-#{@options[:nginx_version]}"
           @nginx_binary = PhusionPassenger.find_support_binary(nginx_name)
-          if !@agent_exe || !@nginx_binary
+          if !@agent_exe || (@options[:engine] == "nginx" && !@nginx_binary)
             install_runtime
             @agent_exe = PhusionPassenger.find_support_binary(AGENT_EXE)
-            @nginx_binary = PhusionPassenger.find_support_binary(nginx_name)
+            @nginx_binary = PhusionPassenger.find_support_binary(nginx_name) if @options[:engine] == "nginx"
           end
         end
       end
@@ -240,6 +243,7 @@ module PhusionPassenger
           # (as opposed to responding quickly with an error), then the system
           # quickly switches to a mirror.
           "--connect-timeout", "0",
+          "--engine", @options[:engine],
           "--idle-timeout", "0"
         ]
         if @options[:auto]
@@ -249,13 +253,15 @@ module PhusionPassenger
           args << "--url-root"
           args << @options[:binaries_url_root]
         end
-        if @options[:nginx_version]
-          args << "--nginx-version"
-          args << @options[:nginx_version]
-        end
-        if @options[:nginx_tarball]
-          args << "--nginx-tarball"
-          args << @options[:nginx_tarball]
+        if @options[:engine] == "nginx"
+          if @options[:nginx_version]
+            args << "--nginx-version"
+            args << @options[:nginx_version]
+          end
+          if @options[:nginx_tarball]
+            args << "--nginx-tarball"
+            args << @options[:nginx_tarball]
+          end
         end
         if @options[:dont_compile_runtime]
           args << "--no-compile"
@@ -280,7 +286,7 @@ module PhusionPassenger
 
       def find_apps
         PhusionPassenger.require_passenger_lib 'standalone/app_finder'
-        @app_finder = AppFinder.new(@argv, @options)
+        @app_finder = AppFinder.new(@argv, @options, @local_options)
         @apps = @app_finder.scan
         if @app_finder.multi_mode? && @options[:engine] != 'nginx'
           puts "Mass deployment enabled, so forcing engine to 'nginx'."
@@ -529,6 +535,12 @@ module PhusionPassenger
             @engine.stop
             STDOUT.puts " done"
             STDOUT.flush
+            if @options[:engine] == "nginx" && @options[:socket_file]
+              begin
+                File.delete(@options[:socket_file])
+              rescue Errno::ENOENT
+              end
+            end
           end
           @engine = nil
         end

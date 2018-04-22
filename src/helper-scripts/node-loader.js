@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2010-2015 Phusion Holding B.V.
+ *  Copyright (c) 2010-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -28,57 +28,93 @@ module.paths.unshift(__dirname + "/../src/nodejs_supportlib");
 var EventEmitter = require('events').EventEmitter;
 var os = require('os');
 var fs = require('fs');
-var net = require('net');
 var http = require('http');
+var util = require('util');
+
+var nodeClusterErrCount = 0;
+var meteorClusterErrCount = 0;
+
+function badPackageError(packageName) {
+	return "You required the " + packageName + ", which is incompatible with Passenger, a non-functional shim was returned and your app may still work. However, please remove the related code as soon as possible.";
+}
+
+// Logs failure to install shim + extended debug info, but with strict spamming protection.
+function errorMockingRequire(packageName, error, args, count) {
+	if (count > 2) {
+		return; // spam protect against repeated warnings
+	}
+	var msg = "Failed to install shim to guard against the " + packageName + ". Due to: " + error.message + ". Your can safely ignore this warning if you are not using " + packageName;
+	msg += "\n\tNode version: " + process.version + "\tArguments: " + args.length;
+	for (i = 0; i < args.length; i++) {
+		if (i > 9) { // limit the amount of array elements we log
+			break;
+		}
+		msg += "\n\t[" + i + "] " + util.inspect(args[i]).substr(0, 200); // limit the characters per array element
+	};
+	console.error(msg);
+}
 
 //Mock out Node Cluster Module
 var Module = require('module');
 var originalRequire = Module.prototype.require;
-Module.prototype.require = function(){
-	if(arguments['0'] == 'cluster'){
-		console.error("You required the cluster module, which is incompatible with Passenger, a non-functional shim was returned and your app may still work. However, please remove the cluster code as soon as possible.");
-		return {
-			disconnect		 : function(){return false;},
-			fork			 : function(){return false;},
-			isMaster		 : false,
-			isWorker		 : true,
-			schedulingPolicy : false,
-			settings		 : false,
-			setupMaster		 : function(){return false;},
-			worker			 : false,
-			workers			 : false,
-		};
-	}else{
-		return originalRequire.apply(this, arguments);
+Module.prototype.require = function() {
+	try {
+		if (arguments['0'] == 'cluster') {
+			console.trace(badPackageError("Node Cluster module"));
+			return {
+				disconnect		 : function(){return false;},
+				fork			 : function(){return false;},
+				setupMaster		 : function(){return false;},
+				isWorker		 : true,
+				isMaster		 : false,
+				schedulingPolicy : false,
+				settings		 : false,
+				worker			 : false,
+				workers			 : false,
+			};
+		}
+	} catch (e) {
+		nodeClusterErrCount++;
+		errorMockingRequire("Node Cluster module", e, arguments, nodeClusterErrCount);
 	}
+	return originalRequire.apply(this, arguments);
 };
 
 //Mock out Meteor Cluster Module
 var vm = require('vm');
 var orig_func = vm.runInThisContext;
-vm.runInThisContext = function(){
-    var scriptPath = arguments['1'];
-    if(scriptPath.indexOf('meteorhacks_cluster') != -1){
-        console.error("You are using the Meteorhacks cluster package, which is incompatible with Passenger, a non-functional shim was returned and your app may still work. However, please remove the cluster code as soon as possible.");
-        return (function(){
-            Package['meteorhacks:cluster'] = {
-				Cluster: {
- 					_publicServices				: {},
-					_registeredServices			: {},
-					_discoveryBackends			: { mongodb: {} },
-					connect						: function(){return false;},
-					allowPublicAccess			: function(){return false;},
-					discoverConnection			: function(){return false;},
-					register					: function(){return false;},
-					_isPublicService			: function(){return false;},
-					registerDiscoveryBackend	: function(){return false;},
-					_blockCallAgain				: function(){return false;}
-				}
-			};
-		});
-    }else{
-        return orig_func.apply(this, arguments);
-    }
+vm.runInThisContext = function() {
+	try {
+		if (arguments.length > 1) {
+			var scriptPath = arguments['1'];
+			if (typeof scriptPath == 'object') {
+				scriptPath = scriptPath['filename'];
+			}
+			if (scriptPath.indexOf('meteorhacks_cluster') != -1) {
+				console.trace(badPackageError("Meteorhacks cluster package"));
+				return (function() {
+					Package['meteorhacks:cluster'] = {
+						Cluster: {
+							_publicServices				: {},
+							_registeredServices			: {},
+							_discoveryBackends			: { mongodb: {} },
+							connect						: function(){return false;},
+							allowPublicAccess			: function(){return false;},
+							discoverConnection			: function(){return false;},
+							register					: function(){return false;},
+							_isPublicService			: function(){return false;},
+							registerDiscoveryBackend	: function(){return false;},
+							_blockCallAgain				: function(){return false;}
+						}
+					};
+				});
+			}
+		}
+	} catch (e) {
+		meteorClusterErrCount++;
+		errorMockingRequire("Meteorhacks Cluster package", e, arguments, meteorClusterErrCount);
+	}
+	return orig_func.apply(this, arguments);
 };
 
 var LineReader = require('phusion_passenger/line_reader').LineReader;
@@ -161,9 +197,9 @@ function setupEnvironment(options) {
 	var logLevel = passengerToWinstonLogLevel(PhusionPassenger.options.log_level);
 	var winston = require("vendor-copy/winston");
 	var logger = new (winston.Logger)({
-  		transports: [
-  			new (winston.transports.Console)({ level: logLevel, debugStdout: true })
-  		]
+			transports: [
+				new (winston.transports.Console)({ level: logLevel, debugStdout: true })
+			]
 	});
 
 	process.title = 'Passenger NodeApp: ' + options.app_root;
@@ -265,6 +301,38 @@ function addListenerAtBeginning(emitter, event, callback) {
 	}
 }
 
+function doListen(server, listenTries, callback) {
+	function errorHandler(error) {
+		if (error.errno == 'EADDRINUSE') {
+			if (listenTries == 100) {
+				server.emit('error', new Error(
+					'Phusion Passenger could not find suitable socket address to bind on'));
+			} else {
+				// Try again with another socket path.
+				listenTries++;
+				doListen(server, listenTries, callback);
+			}
+		} else {
+			server.emit('error', error);
+		}
+	}
+
+	var socketPath = PhusionPassenger.options.socket_path = generateServerSocketPath();
+	server.once('error', errorHandler);
+	server.originalListen(socketPath, function() {
+		server.removeListener('error', errorHandler);
+		doneListening(server, callback);
+		process.nextTick(finalizeStartup);
+	});
+}
+
+function doneListening(server, callback) {
+	if (callback) {
+		server.once('listening', callback);
+	}
+	server.emit('listening');
+}
+
 function installServer() {
 	var server = this;
 	if (!PhusionPassenger._appInstalled) {
@@ -284,39 +352,7 @@ function installServer() {
 		});
 
 		var listenTries = 0;
-		doListen(extractCallback(arguments));
-
-		function doListen(callback) {
-			function errorHandler(error) {
-				if (error.errno == 'EADDRINUSE') {
-					if (listenTries == 100) {
-						server.emit('error', new Error(
-							'Phusion Passenger could not find suitable socket address to bind on'));
-					} else {
-						// Try again with another socket path.
-						listenTries++;
-						doListen(callback);
-					}
-				} else {
-					server.emit('error', error);
-				}
-			}
-
-			var socketPath = PhusionPassenger.options.socket_path = generateServerSocketPath();
-			server.once('error', errorHandler);
-			server.originalListen(socketPath, function() {
-				server.removeListener('error', errorHandler);
-				doneListening(callback);
-				process.nextTick(finalizeStartup);
-			});
-		}
-
-		function doneListening(callback) {
-			if (callback) {
-				server.once('listening', callback);
-			}
-			server.emit('listening');
-		}
+		doListen(server, listenTries, extractCallback(arguments));
 
 		return server;
 	} else {

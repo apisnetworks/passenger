@@ -1,5 +1,5 @@
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2010-2016 Phusion Holding B.V.
+#  Copyright (c) 2010-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -42,17 +42,12 @@ TEST_CXX_OBJECTS = {
   "#{TEST_OUTPUT_DIR}cxx/Core/SpawningKit/SmartSpawnerTest.o" =>
     "test/cxx/Core/SpawningKit/SmartSpawnerTest.cpp",
 
-  "#{TEST_OUTPUT_DIR}cxx/Core/UnionStationTest.o" =>
-    "test/cxx/Core/UnionStationTest.cpp",
   "#{TEST_OUTPUT_DIR}cxx/Core/ResponseCacheTest.o" =>
     "test/cxx/Core/ResponseCacheTest.cpp",
   "#{TEST_OUTPUT_DIR}cxx/Core/SecurityUpdateCheckerTest.o" =>
       "test/cxx/Core/SecurityUpdateCheckerTest.cpp",
   "#{TEST_OUTPUT_DIR}cxx/Core/ControllerTest.o" =>
     "test/cxx/Core/ControllerTest.cpp",
-
-  "#{TEST_OUTPUT_DIR}cxx/UstRouter/TransactionTest.o" =>
-    "test/cxx/UstRouter/TransactionTest.cpp",
 
   "#{TEST_OUTPUT_DIR}cxx/ServerKit/ChannelTest.o" =>
     "test/cxx/ServerKit/ChannelTest.cpp",
@@ -67,6 +62,16 @@ TEST_CXX_OBJECTS = {
   "#{TEST_OUTPUT_DIR}cxx/ServerKit/CookieUtilsTest.o" =>
     "test/cxx/ServerKit/CookieUtilsTest.cpp",
 
+  "#{TEST_OUTPUT_DIR}cxx/ConfigKit/SchemaTest.o" =>
+    "test/cxx/ConfigKit/SchemaTest.cpp",
+  "#{TEST_OUTPUT_DIR}cxx/ConfigKit/StoreTest.o" =>
+    "test/cxx/ConfigKit/StoreTest.cpp",
+  "#{TEST_OUTPUT_DIR}cxx/ConfigKit/ErrorTest.o" =>
+    "test/cxx/ConfigKit/ErrorTest.cpp",
+  "#{TEST_OUTPUT_DIR}cxx/ConfigKit/TranslationTest.o" =>
+    "test/cxx/ConfigKit/TranslationTest.cpp",
+  "#{TEST_OUTPUT_DIR}cxx/ConfigKit/SubSchemaTest.o" =>
+    "test/cxx/ConfigKit/SubSchemaTest.cpp",
   "#{TEST_OUTPUT_DIR}cxx/MemoryKit/MbufTest.o" =>
     "test/cxx/MemoryKit/MbufTest.cpp",
   "#{TEST_OUTPUT_DIR}cxx/MemoryKit/PallocTest.o" =>
@@ -115,50 +120,44 @@ TEST_CXX_OBJECTS = {
     "test/cxx/Base64DecodingTest.cpp"
 }
 
-def basic_test_cxx_flags
-  @basic_test_cxx_flags ||= begin
-    flags = [
-      LIBEV_CFLAGS,
-      LIBUV_CFLAGS,
-      PlatformInfo.curl_flags,
-      TEST_COMMON_CFLAGS
-    ]
-    if USE_ASAN
-      flags << PlatformInfo.adress_sanitizer_flag
-    end
-    flags
+let(:basic_test_cxx_flags) do
+  flags = [
+    libev_cflags,
+    libuv_cflags,
+    PlatformInfo.curl_flags,
+    TEST_COMMON_CFLAGS
+  ]
+  if USE_ASAN
+    flags << PlatformInfo.adress_sanitizer_flag
   end
+  flags
 end
 
-def test_cxx_include_paths
-  @test_cxx_include_paths ||= [
-    "test/cxx",
-    "test/support",
-    "src/agent",
+let(:test_cxx_include_paths) do
+  [
+    'test/cxx',
+    'test/support',
+    'src/agent',
     *CXX_SUPPORTLIB_INCLUDE_PATHS
   ]
 end
 
-def test_cxx_flags
-  @test_cxx_flags ||= ["-include test/cxx/TestSupport.h"] +
-    basic_test_cxx_flags
+let(:test_cxx_flags) do
+  ['-include test/cxx/TestSupport.h'] + basic_test_cxx_flags
 end
 
-def test_cxx_ldflags
-  @test_cxx_ldflags ||= begin
-    result = "#{EXTRA_PRE_CXX_LDFLAGS} " <<
-      "#{TEST_COMMON_LIBRARY.link_objects_as_string} " <<
-      "#{TEST_BOOST_OXT_LIBRARY} #{libev_libs} #{libuv_libs} " <<
-      "#{PlatformInfo.curl_libs} " <<
-      "#{PlatformInfo.zlib_libs} " <<
-      "#{PlatformInfo.crypto_libs} " <<
-      "#{PlatformInfo.portability_cxx_ldflags}"
-    result << " #{PlatformInfo.dmalloc_ldflags}" if USE_DMALLOC
-    result << " #{PlatformInfo.adress_sanitizer_flag}" if USE_ASAN
-    result << " #{EXTRA_CXX_LDFLAGS}"
-    result.strip!
-    result
-  end
+let(:test_cxx_ldflags) do
+  result = "#{EXTRA_PRE_CXX_LDFLAGS} " <<
+    "#{TEST_COMMON_LIBRARY.link_objects_as_string} " <<
+    "#{TEST_BOOST_OXT_LIBRARY} #{libev_libs} #{libuv_libs} " <<
+    "#{PlatformInfo.curl_libs} " <<
+    "#{PlatformInfo.zlib_libs} " <<
+    "#{PlatformInfo.crypto_libs} " <<
+    "#{PlatformInfo.portability_cxx_ldflags}"
+  result << " #{PlatformInfo.adress_sanitizer_flag}" if USE_ASAN
+  result << " #{EXTRA_CXX_LDFLAGS}"
+  result.strip!
+  result
 end
 
 # Define compilation tasks for object files.
@@ -166,13 +165,15 @@ TEST_CXX_OBJECTS.each_pair do |object, source|
   define_cxx_object_compilation_task(
     object,
     source,
-    :include_paths => test_cxx_include_paths,
-    :flags => test_cxx_flags,
-    :deps => 'test/cxx/TestSupport.h.gch'
+    lambda { {
+      :include_paths => test_cxx_include_paths,
+      :flags => test_cxx_flags,
+      :deps => 'test/cxx/TestSupport.h.gch'
+    } }
   )
 end
 
-# Define compilation task for the agent executable.
+# Define compilation task for the test main executable.
 dependencies = [
   TEST_CXX_OBJECTS.keys,
   LIBEV_TARGET,
@@ -202,6 +203,8 @@ task 'test:cxx' => dependencies do
   command = "#{File.expand_path(TEST_CXX_TARGET)} #{args.join(' ')}".strip
   if boolean_option('GDB')
     command = "gdb --args #{command}"
+  elsif boolean_option('LLDB')
+    command = "lldb -s ./lldbinit -- #{command}"
   elsif boolean_option('VALGRIND')
     valgrind_args = "--dsymutil=yes --vgdb=yes --vgdb-error=1 --child-silent-after-fork=yes"
     if boolean_option('LEAK_CHECK')
@@ -218,11 +221,15 @@ task 'test:cxx' => dependencies do
   if boolean_option('REPEAT')
     if boolean_option('GDB')
       abort "You cannot set both REPEAT=1 and GDB=1."
+    elsif boolean_option('LLDB')
+      abort "You cannot set both REPEAT=1 and LLDB=1."
     end
     sh "cd test && while #{command}; do echo -------------------------------------------; done"
   elsif boolean_option('REPEAT_FOREVER')
     if boolean_option('GDB')
       abort "You cannot set both REPEAT_FOREVER=1 and GDB=1."
+    elsif boolean_option('LLDB')
+      abort "You cannot set both REPEAT_FOREVER=1 and LLDB=1."
     end
     sh "cd test && while true; do #{command}; echo -------------------------------------------; done"
   else

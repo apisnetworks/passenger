@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2013-2014 Phusion Holding B.V.
+ *  Copyright (c) 2013-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -73,7 +73,7 @@ static sig_atomic_t shouldIgnoreNextTermSignal = 0;
 
 static void
 usage() {
-	printf("Usage: " AGENT_EXE " temp-dir-watcher <DIRECTORY> [OPTIONS...]\n");
+	printf("Usage: " AGENT_EXE " temp-dir-toucher <DIRECTORY> [OPTIONS...]\n");
 	printf("Touches everything in a directory every 30 minutes, to "
 		"prevent /tmp cleaners from removing the directory.\n");
 	printf("\n");

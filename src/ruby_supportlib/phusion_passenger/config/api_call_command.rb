@@ -1,5 +1,5 @@
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2014-2015 Phusion Holding B.V.
+#  Copyright (c) 2014-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -94,7 +94,7 @@ module PhusionPassenger
           opts.on("-a", "--agent NAME", String, "The name of the socket to send the command#{nl}" +
             "to. This specifies which agent the request#{nl}" +
             "is sent to. Choices: watchdog_api,#{nl}" +
-            "core_api, ust_router_api.#{nl}" +
+            "core_api.#{nl}" +
             "Default: core_api") do |val|
             options[:agent_name] = val
           end

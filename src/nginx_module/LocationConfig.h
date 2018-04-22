@@ -1,27 +1,27 @@
 /*
- * Phusion Passenger - https://www.phusionpassenger.com/
- * Copyright (c) 2010-2016 Phusion Holding B.V.
+ *  Phusion Passenger - https://www.phusionpassenger.com/
+ *  Copyright (c) 2010-2017 Phusion Holding B.V.
  *
- * "Passenger", "Phusion Passenger" and "Union Station" are registered
- * trademarks of Phusion Holding B.V.
+ *  "Passenger", "Phusion Passenger" and "Union Station" are registered
+ *  trademarks of Phusion Holding B.V.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
+ *  Permission is hereby granted, free of charge, to any person obtaining a copy
+ *  of this software and associated documentation files (the "Software"), to deal
+ *  in the Software without restriction, including without limitation the rights
+ *  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ *  copies of the Software, and to permit persons to whom the Software is
+ *  furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
+ *  The above copyright notice and this permission notice shall be included in
+ *  all copies or substantial portions of the Software.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ *  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ *  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ *  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ *  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ *  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ *  THE SOFTWARE.
  */
 
 /*
@@ -51,9 +51,7 @@ typedef struct {
     ngx_int_t abort_websockets_on_process_shutdown;
     ngx_uint_t app_file_descriptor_ulimit;
     ngx_array_t *base_uris;
-    ngx_uint_t core_file_descriptor_ulimit;
     ngx_int_t debugger;
-    ngx_int_t disable_security_update_check;
     ngx_int_t enabled;
     ngx_array_t *env_vars;
     ngx_int_t force_max_concurrent_requests_per_process;
@@ -68,7 +66,6 @@ typedef struct {
     ngx_int_t max_requests;
     ngx_int_t min_instances;
     ngx_int_t request_queue_overflow_status_code;
-    ngx_int_t socket_backlog;
     ngx_int_t start_timeout;
     ngx_int_t sticky_sessions;
     ngx_array_t *union_station_filters;
@@ -85,7 +82,6 @@ typedef struct {
     ngx_str_t python;
     ngx_str_t restart_dir;
     ngx_str_t ruby;
-    ngx_str_t security_update_check_proxy;
     ngx_str_t spawn_method;
     ngx_str_t startup_file;
     ngx_str_t sticky_sessions_cookie_name;

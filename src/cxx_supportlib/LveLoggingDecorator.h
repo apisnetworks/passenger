@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2010-2016 Phusion Holding B.V.
+ *  Copyright (c) 2010-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -26,7 +26,7 @@
 #ifndef _PASSENGER_LVE_LOGGING_DECORATOR_H_
 #define _PASSENGER_LVE_LOGGING_DECORATOR_H_
 
-#include <Logging.h>
+#include <LoggingKit/LoggingKit.h>
 #include <adhoc_lve.h>
 #include <string>
 #include <sys/types.h>

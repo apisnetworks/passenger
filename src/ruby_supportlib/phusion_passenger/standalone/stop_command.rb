@@ -1,5 +1,5 @@
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2010-2015 Phusion Holding B.V.
+#  Copyright (c) 2010-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -48,6 +48,12 @@ module PhusionPassenger
         end
         if running
           @controller.stop
+          if @options[:engine] == "nginx" && @options[:socket_file]
+            begin
+              File.delete(@options[:socket_file])
+            rescue Errno::ENOENT
+            end
+          end
         else
           Standalone::ControlUtils.warn_pid_file_not_found(@options)
           exit 1

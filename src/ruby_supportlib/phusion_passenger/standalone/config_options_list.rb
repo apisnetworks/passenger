@@ -1,5 +1,5 @@
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2015-2016 Phusion Holding B.V.
+#  Copyright (c) 2015-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -246,7 +246,7 @@ module PhusionPassenger
         :name      => :spawn_method,
         :type_desc => 'NAME',
         :default   => PlatformInfo.ruby_supports_fork? ? DEFAULT_SPAWN_METHOD : 'direct',
-        :desc      => 'The spawn method to use. Default: %DEFAULT%'
+        :desc      => 'The spawn method to use. Default: see docs'
       },
       {
         :name      => :static_files_dir,

@@ -1,6 +1,6 @@
 # encoding: utf-8
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2010-2014 Phusion Holding B.V.
+#  Copyright (c) 2010-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -33,7 +33,9 @@ module PhusionPassenger
       @buffer = ''
       if input[:file]
         filename = "#{PhusionPassenger.resources_dir}/templates/#{input[:file]}.txt.erb"
-        data = File.read(filename)
+        data = File.open(filename, 'r:utf-8') do |f|
+          f.read
+        end
       else
         data = input[:text]
       end

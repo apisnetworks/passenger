@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2010-2016 Phusion Holding B.V.
+ *  Copyright (c) 2010-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -71,11 +71,12 @@
 #include <ev++.h>
 #include <jsoncpp/json.h>
 
-#include <Shared/Base.h>
+#include <Shared/Fundamentals/Initialization.h>
 #include <Shared/ApiServerUtils.h>
 #include <Constants.h>
 #include <ServerKit/Server.h>
 #include <ServerKit/AcceptLoadBalancer.h>
+#include <ConfigKit/VariantMapUtils.h>
 #include <MessageReadersWriters.h>
 #include <FileDescriptor.h>
 #include <ResourceLocator.h>
@@ -96,6 +97,7 @@
 using namespace boost;
 using namespace oxt;
 using namespace Passenger;
+using namespace Passenger::Agent::Fundamentals;
 using namespace Passenger::ApplicationPool2;
 
 
@@ -118,6 +120,7 @@ namespace Core {
 	struct ApiWorkingObjects {
 		BackgroundEventLoop *bgloop;
 		ServerKit::Context *serverKitContext;
+		ServerKit::HttpServerSchema apiServerSchema;
 		ApiServer::ApiServer *apiServer;
 
 		ApiWorkingObjects()
@@ -141,6 +144,7 @@ namespace Core {
 		PoolPtr appPool;
 
 		ServerKit::AcceptLoadBalancer<Controller> loadBalancer;
+		ControllerSchema controllerSchema;
 		vector<ThreadWorkingObjects> threadWorkingObjects;
 		struct ev_signal sigintWatcher;
 		struct ev_signal sigtermWatcher;
@@ -304,7 +308,9 @@ makeFileWorldReadableAndWritable(const string &path) {
 }
 
 #ifdef USE_SELINUX
-	// Set next socket context to *:system_r:passenger_instance_httpd_socket_t
+	// Set next socket context to *:system_r:passenger_instance_httpd_socket_t.
+	// Note that this only sets the context of the socket file descriptor,
+	// not the socket file on the filesystem. This is why we need selinuxRelabelFile().
 	static void
 	setSelinuxSocketContext() {
 		security_context_t currentCon;
@@ -342,6 +348,40 @@ makeFileWorldReadableAndWritable(const string &path) {
 	resetSelinuxSocketContext() {
 		setsockcreatecon(NULL);
 	}
+
+	static void
+	selinuxRelabelFile(const string &path, const char *newLabel) {
+		security_context_t currentCon;
+		string newCon;
+		int e;
+
+		if (getfilecon(path.c_str(), &currentCon) == -1) {
+			e = errno;
+			P_DEBUG("Unable to obtain SELinux context for file " <<
+				path <<": " << strerror(e) << " (errno=" << e << ")");
+			return;
+		}
+
+		P_DEBUG("SELinux context for " << path << ": " << currentCon);
+
+		if (strstr(currentCon, ":object_r:passenger_instance_content_t:") == NULL) {
+			goto cleanup;
+		}
+		newCon = replaceString(currentCon,
+			":object_r:passenger_instance_content_t:",
+			StaticString(":object_r:") + newLabel + ":");
+		P_DEBUG("Relabeling " << path << " to: " << newCon);
+
+		if (setfilecon(path.c_str(), (security_context_t) newCon.c_str()) == -1) {
+			e = errno;
+			P_WARN("Cannot set SELinux context for " << path <<
+				" to " << newCon << ": " << strerror(e) <<
+				" (errno=" << e << ")");
+		}
+
+		cleanup:
+		freecon(currentCon);
+	}
 #endif
 
 static void
@@ -362,6 +402,13 @@ startListening() {
 			__FILE__, __LINE__);
 		#ifdef USE_SELINUX
 			resetSelinuxSocketContext();
+			if (i == 0 && getSocketAddressType(addresses[0]) == SAT_UNIX) {
+				// setSelinuxSocketContext() sets the context of the
+				// socket file descriptor but not the file on the filesystem.
+				// So we relabel the socket file here.
+				selinuxRelabelFile(parseUnixSocketAddress(addresses[0]),
+					"passenger_instance_httpd_socket_t");
+			}
 		#endif
 		P_LOG_FILE_DESCRIPTOR_PURPOSE(wo->serverFds[i],
 			"Server address: " << addresses[i]);
@@ -418,7 +465,7 @@ inspectControllerStateAsJson(Controller *controller, string *result) {
 
 static void
 inspectControllerConfigAsJson(Controller *controller, string *result) {
-	*result = controller->getConfigAsJson().toStyledString();
+	*result = controller->inspectConfig().toStyledString();
 }
 
 static void
@@ -498,7 +545,7 @@ dumpDiagnosticsOnCrash(void *userData) {
 	for (i = 0; i < wo->threadWorkingObjects.size(); i++) {
 		ThreadWorkingObjects *two = &wo->threadWorkingObjects[i];
 		cerr << "### Request handler config (thread " << (i + 1) << ")\n";
-		cerr << two->controller->getConfigAsJson();
+		cerr << two->controller->inspectConfig();
 		cerr << "\n";
 		cerr.flush();
 	}
@@ -629,6 +676,12 @@ initializeNonPrivilegedWorkingObjects() {
 		UPDATE_TRACE_POINT();
 		ThreadWorkingObjects two;
 
+		Json::Value config = ConfigKit::variantMapToJson(wo->controllerSchema,
+			*agentsOptions);
+		config["thread_number"] = i + 1;
+		config["min_spare_clients"] = 128;
+		config["client_freelist_limit"] = 1024;
+
 		if (i == 0) {
 			two.bgloop = firstLoop = new BackgroundEventLoop(true, true);
 		} else {
@@ -645,9 +698,8 @@ initializeNonPrivilegedWorkingObjects() {
 			options.getUint("file_buffer_threshold");
 
 		UPDATE_TRACE_POINT();
-		two.controller = new Core::Controller(two.serverKitContext, agentsOptions, i + 1);
-		two.controller->minSpareClients = 128;
-		two.controller->clientFreelistLimit = 1024;
+		two.controller = new Core::Controller(two.serverKitContext,
+			wo->controllerSchema, config);
 		two.controller->resourceLocator = &wo->resourceLocator;
 		two.controller->appPool = wo->appPool;
 		two.controller->unionStationContext = wo->unionStationContext;
@@ -681,7 +733,8 @@ initializeNonPrivilegedWorkingObjects() {
 			options.getUint("file_buffer_threshold");
 
 		UPDATE_TRACE_POINT();
-		awo->apiServer = new Core::ApiServer::ApiServer(awo->serverKitContext);
+		awo->apiServer = new Core::ApiServer::ApiServer(awo->serverKitContext,
+			awo->apiServerSchema);
 		awo->apiServer->controllers.reserve(wo->threadWorkingObjects.size());
 		for (unsigned int i = 0; i < wo->threadWorkingObjects.size(); i++) {
 			awo->apiServer->controllers.push_back(
@@ -693,6 +746,7 @@ initializeNonPrivilegedWorkingObjects() {
 		awo->apiServer->fdPassingPassword = options.get("watchdog_fd_passing_password", false);
 		awo->apiServer->exitEvent = &wo->exitEvent;
 		awo->apiServer->shutdownFinishCallback = apiServerShutdownFinished;
+		awo->apiServer->initialize();
 
 		wo->shutdownCounter.fetch_add(1, boost::memory_order_relaxed);
 	}
@@ -744,9 +798,12 @@ initializeSecurityUpdateChecker() {
 		if (!standaloneEngine.empty()) {
 			serverIntegration.append(" " + standaloneEngine);
 		}
+		if (options.get("server_software").find(FLYING_PASSENGER_NAME) != string::npos) {
+			serverIntegration.append(" flying");
+		}
 		string serverVersion = options.get("server_version", false); // not set in case of standalone / builtin
 
-		workingObjects->securityUpdateChecker = new SecurityUpdateChecker(workingObjects->resourceLocator, proxy, serverIntegration, serverVersion);
+		workingObjects->securityUpdateChecker = new SecurityUpdateChecker(workingObjects->resourceLocator, proxy, serverIntegration, serverVersion, options.get("instance_dir",false));
 		workingObjects->securityUpdateChecker->start(24 * 60 * 60);
 	}
 }
@@ -765,6 +822,80 @@ prestartWebApps() {
 	wo->prestarterThread = new oxt::thread(
 		boost::bind(runAndPrintExceptions, func, true)
 	);
+}
+
+/**
+ * See warnIfPassengerRootVulnerable()
+ */
+static void
+warnIfPathVulnerable(const char *path, string &warnings) {
+	struct stat pathStat;
+
+	if (stat(path, &pathStat) == -1) {
+		P_DEBUG("Vulnerability check skipped: stat error on " << path << " (errno: " << errno << ")");
+		return; // fatal: we need that stat for both checks below
+	}
+
+	// Non-root ownership
+	struct passwd pathOwner;
+	struct passwd *pwdResult;
+
+	boost::shared_array<char> strings;
+	long stringsBufSize = std::max<long>(1024 * 128, sysconf(_SC_GETPW_R_SIZE_MAX));
+	strings.reset(new char[stringsBufSize]);
+	errno = 0;
+	if (getpwuid_r(pathStat.st_uid, &pathOwner, strings.get(), stringsBufSize, &pwdResult) == -1) {
+		P_DEBUG("Vulnerability check (owner) skipped: getpwuid_r error on " << path << " (owner UID: " <<
+				pathStat.st_uid << ", errno: " << errno << ")");
+	} else if (pwdResult == NULL) {
+		P_DEBUG("Vulnerability check (owner) skipped: getpwuid_r empty on " << path << " (owner UID: " <<
+				pathStat.st_uid << ", errno: " << errno << ")");
+	} else if (pathOwner.pw_uid != 0) {
+		warnings.append("\nThe path \"");
+		warnings.append(path);
+		warnings.append("\" can be modified by user \"");
+		warnings.append(pathOwner.pw_name);
+		warnings.append("\" (or applications running as that user). Change the owner of the path to root, or avoid running Passenger as root.");
+	}
+
+	// World writeable access rights
+	if ((pathStat.st_mode & S_IWOTH) != 0) {
+		warnings.append("\nThe path \"");
+		warnings.append(path);
+		warnings.append("\" is writeable by any user (or application). Limit write access on the path to only the root user/group.");
+	}
+}
+
+/*
+ * Emit a warning (log) if the Passenger root dir (and/or its parents) can be modified by non-root users
+ * while Passenger was run as root (because non-root users can then tamper with something running as root).
+ * It's just a convenience warning, so check failures are only logged at the debug level.
+ *
+ * N.B. we limit our checking to use cases that can easily (gotcha) lead to this vulnerable setup, such as
+ * installing Passenger via gem or tarball in a user dir, and then running it as root (for example by installing
+ * it as nginx or apache module). We do not check the entire installation file/dir structure for whether users have
+ * changed owner or access rights.
+ */
+static void
+warnIfPassengerRootVulnerable(const string &passengerRoot) {
+	TRACE_POINT();
+
+	if (geteuid() != 0) {
+		return; // Passenger is not root, so no escalation.
+	}
+
+	string checkPath = absolutizePath(passengerRoot);
+	// Check the Passenger root and all dirs above it for ownership and world-writeability
+	string warnings;
+	while (!checkPath.empty() && checkPath != "/") {
+		warnIfPathVulnerable(checkPath.c_str(), warnings);
+
+		checkPath = extractDirName(checkPath);
+	}
+	if (!warnings.empty()) {
+		P_WARN("WARNING: potential privilege escalation vulnerability. Passenger is running as root, and part(s) of the passenger root path (" <<
+				passengerRoot << ") can be changed by non-root user(s):" << warnings);
+	}
 }
 
 static void
@@ -815,7 +946,9 @@ mainLoop() {
 			&& maxCpus <= CPU_SETSIZE;
 	#endif
 
-	installDiagnosticsDumper(dumpDiagnosticsOnCrash, NULL);
+	Agent::Fundamentals::context->abortHandlerConfig.diagnosticsDumper = dumpDiagnosticsOnCrash;
+	Agent::Fundamentals::abortHandlerConfigChanged();
+
 	for (unsigned int i = 0; i < wo->threadWorkingObjects.size(); i++) {
 		ThreadWorkingObjects *two = &wo->threadWorkingObjects[i];
 		two->bgloop->start("Main event loop: thread " + toString(i + 1), 0);
@@ -880,6 +1013,7 @@ shutdownApiServer() {
 static void
 serverShutdownFinished() {
 	unsigned int i = workingObjects->shutdownCounter.fetch_sub(1, boost::memory_order_release);
+	P_DEBUG("Shutdown counter = " << (i - 1));
 	if (i == 1) {
 		boost::atomic_thread_fence(boost::memory_order_acquire);
 		workingObjects->allClientsDisconnectedEvent.notify();
@@ -888,11 +1022,13 @@ serverShutdownFinished() {
 
 static void
 controllerShutdownFinished(Core::Controller *controller) {
+	P_DEBUG("Controller " << controller->getThreadNumber() << " shutdown finished");
 	serverShutdownFinished();
 }
 
 static void
 apiServerShutdownFinished(Core::ApiServer::ApiServer *server) {
+	P_DEBUG("API server shutdown finished");
 	serverShutdownFinished();
 }
 
@@ -901,7 +1037,7 @@ apiServerShutdownFinished(Core::ApiServer::ApiServer *server) {
  */
 static void
 waitForExitEvent() {
-	this_thread::disable_syscall_interruption dsi;
+	boost::this_thread::disable_syscall_interruption dsi;
 	WorkingObjects *wo = workingObjects;
 	fd_set fds;
 	int largestFd = -1;
@@ -917,7 +1053,8 @@ waitForExitEvent() {
 	TRACE_POINT();
 	if (syscalls::select(largestFd + 1, &fds, NULL, NULL, NULL) == -1) {
 		int e = errno;
-		installDiagnosticsDumper(NULL, NULL);
+		Agent::Fundamentals::context->abortHandlerConfig.diagnosticsDumper = NULL;
+		Agent::Fundamentals::abortHandlerConfigChanged();
 		throw SystemException("select() failed", e);
 	}
 
@@ -961,7 +1098,8 @@ waitForExitEvent() {
 			&fds, NULL, NULL, NULL) == -1)
 		{
 			int e = errno;
-			installDiagnosticsDumper(NULL, NULL);
+			Agent::Fundamentals::context->abortHandlerConfig.diagnosticsDumper = NULL;
+			Agent::Fundamentals::abortHandlerConfigChanged();
 			throw SystemException("select() failed", e);
 		}
 
@@ -976,7 +1114,10 @@ cleanup() {
 
 	P_DEBUG("Shutting down " SHORT_PROGRAM_NAME " core...");
 	wo->appPool->destroy();
-	installDiagnosticsDumper(NULL, NULL);
+
+	Agent::Fundamentals::context->abortHandlerConfig.diagnosticsDumper = dumpDiagnosticsOnCrash;
+	Agent::Fundamentals::abortHandlerConfigChanged();
+
 	for (unsigned i = 0; i < wo->threadWorkingObjects.size(); i++) {
 		ThreadWorkingObjects *two = &wo->threadWorkingObjects[i];
 		two->bgloop->stop();
@@ -1037,6 +1178,7 @@ runCore() {
 		prestartWebApps();
 
 		UPDATE_TRACE_POINT();
+		warnIfPassengerRootVulnerable(agentsOptions->get("passenger_root"));
 		reportInitializationInfo();
 		mainLoop();
 
@@ -1116,6 +1258,10 @@ setAgentsOptionsDefaults() {
 	if (!options.has("default_group")) {
 		options.set("default_group",
 			inferDefaultGroup(options.get("default_user")));
+	}
+	options.setDefault("integration_mode", "standalone");
+	if (options.get("integration_mode") == "standalone" && !options.has("standalone_engine")) {
+		options.set("standalone_engine", "builtin");
 	}
 	options.setDefaultStrSet("core_addresses", defaultAddress);
 	options.setDefaultInt("socket_backlog", DEFAULT_SOCKET_BACKLOG);
@@ -1255,8 +1401,8 @@ sanityCheckOptions() {
 			ok = false;
 		#endif
 	}
-	if (Core::Controller::parseBenchmarkMode(options.get("benchmark_mode", false))
-		== Core::Controller::BM_UNKNOWN)
+	if (Core::parseControllerBenchmarkMode(options.get("benchmark_mode", false))
+		== Core::BM_UNKNOWN)
 	{
 		fprintf(stderr, "ERROR: '%s' is not a valid mode for --benchmark.\n",
 			options.get("benchmark_mode", false).c_str());

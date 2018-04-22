@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2015 Phusion Holding B.V.
+ *  Copyright (c) 2015-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -169,7 +169,12 @@ public:
  *
  * This class is implemented using FastStdStringBuf.
  */
-template<size_t staticCapacity = 1024>
+#ifndef _PASSENGER_FAST_STRING_STREAM_FORWARD_DECLARED_
+	#define _PASSENGER_FAST_STRING_STREAM_FORWARD_DECLARED_
+	template<size_t staticCapacity = 1024>
+#else
+	template<size_t staticCapacity>
+#endif
 class FastStringStream: public FastStdStringBuf<staticCapacity>, public ostream {
 public:
 	FastStringStream(unsigned int initialCapacity = 0)

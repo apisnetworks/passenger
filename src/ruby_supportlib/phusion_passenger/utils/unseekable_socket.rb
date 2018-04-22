@@ -1,5 +1,5 @@
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2010 Phusion Holding B.V.
+#  Copyright (c) 2010-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -117,8 +117,8 @@ module PhusionPassenger
         raise annotate(e)
       end
 
-      def write_nonblock(string)
-        @socket.write_nonblock(string)
+      def write_nonblock(string, *args)
+        @socket.write_nonblock(string, *args)
       rescue => e
         raise annotate(e)
       end

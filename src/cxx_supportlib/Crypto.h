@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2010-2016 Phusion Holding B.V.
+ *  Copyright (c) 2010-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -39,6 +39,8 @@
 #include <openssl/err.h>
 #endif
 
+#include <StaticString.h>
+
 namespace Passenger {
 
 #if BOOST_OS_MACOS
@@ -72,25 +74,25 @@ private:
 	 */
 	void freePubKey(PUBKEY_TYPE);
 
-	void logError(string error);
+	void logError(const StaticString &error);
 
 	/**
 	 * log prefix using P_ERROR, and (library-specific) detail from either additional or global query
 	 */
 #if BOOST_OS_MACOS
+	CFDataRef id;
 	// (additional needs to be defined as a CFErrorRef, void * won't work)
-	void logFreeErrorExtended(string prefix, CFErrorRef &additional);
+	void logFreeErrorExtended(const StaticString &prefix, CFErrorRef &additional);
 	CFDictionaryRef createQueryDict(const char *label);
 	SecAccessRef createAccess(const char *cLabel);
 	OSStatus lookupKeychainItem(const char *label, SecIdentityRef *oIdentity);
-	OSStatus copyIdentityFromPKCS12File(const char *cPath, const char *cPassword, const char *cLabel, SecIdentityRef *oIdentity);
+	OSStatus copyIdentityFromPKCS12File(const char *cPath, const char *cPassword, const char *cLabel);
 	CFDataRef genIV(size_t iv_size);
 	bool getKeyBytes(SecKeyRef cryptokey, void **target, size_t &len);
-	bool generateRandomChars(unsigned char *rndChars, int rndLen);
 	bool memoryBridge(CFDataRef input, void **target, size_t &len);
 	bool innerMemoryBridge(void *input, void **target, size_t len);
 #else
-	void logErrorExtended(string prefix);
+	void logErrorExtended(const StaticString &prefix);
 #endif
 
 public:
@@ -106,8 +108,9 @@ public:
 	/**
 	 * sets the permissions on the certificate so that curl doesn't prompt
 	 */
-	void preAuthKey(const char *path, const char *passwd, const char *cLabel);
+	bool preAuthKey(const char *path, const char *passwd, const char *cLabel);
 	void killKey(const char *cLabel);
+	bool generateRandomChars(unsigned char *rndChars, int rndLen);
 #endif
 
 	/**

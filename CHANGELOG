@@ -1,5 +1,154 @@
-Next version (not yet released)
--------------------------------
+Release 5.1.12
+---------------------------------
+
+ * Changes the Debian/Ubuntu install script to completely restart Apache upon upgrade. This prevents issues due to a "half upgraded" state (old Passenger Apache module + new Passenger core). Closes GH-2000.
+ * Adds Ubuntu 17.10 "Artful" packages.
+ * Fixes a case in which -- when Passenger is configured with user switching turned off -- it is unable to open the web server log file and aborts during startup. This regression was introduced in 5.1.8. Closes GH-1990.
+ * [Nginx] The preferred Nginx version is now 1.12.2
+ * [Nginx] The preferred PCRE version is now 8.41 (previously 8.39).
+ * [Standalone] Adds support for using `start_timeout` in Passengerfile.json.
+ * [Enterprise] Uses libuv to detect total system RAM, allows for compilation on pre-10.11 macOS.
+ * [Enterprise] Added a max request queue time option, to limit time requests spend in the request queue. Closes GH-1688.
+ * Updated libcurl version used in precompiled binaries (used for e.g. gem installs) to 7.56.1 (was: 7.54.1).
+ * Updated OpenSSL version used in precompiled binaries (used for e.g. gem installs) to 1.0.2m (was: 1.0.2l).
+ * Updated PCRE version used in precompiled binaries (used for e.g. gem installs) to 8.41 (was: 8.40).
+ * Updated Ruby versions used in precompiled binaries (used for e.g. gem installs) to include 2.1.10, 2.2.8, 2.3.5, and 2.4.2 (removed: 2.1.9, 2.2.7, 2.3.4, and 2.4.1).
+
+
+Release 5.1.11
+--------------
+
+ * [Apache] Fixes a race condition (segfault) on startup, which primarily affected macOS hosts (regression in 5.1.8 due to the logging improvements). Closes GH-1973.
+ * [Apache] Fixes compilation on macOS 10.13 High Sierra.
+ * [Nginx] It is now allowed to specify `passenger_enabled` in the `http` context as well.
+ * [Nginx] Namespaced Jsoncpp under the Passenger namespace to avoid collisions with Google Pagespeed's copy when linked into Nginx.
+ * [Standalone] Enables HTTP/2 support in the Nginx template. Support is only active if SSL is used, to avoid potential issues with HTTP/2 on HTTP ports. Closes GH-1945.
+ * [Enterprise, Standalone] Adds a new feature that is especially useful on Heroku: deferred port binding. When `--defer-port-binding` is set, Passenger does not listen on the given port until the application has finished spawning. If the application starts slowly then this mechanism can prevent the Heroku request timeout from killing the dyno (the boot timeout still applies).
+ * [Enterprise, Standalone] Fixes duplicate warnings when Passengerfile.json contains errors.
+ * [Standalone] `passenger start` now accepts the `--start-timeout` configuration option.
+ * Adds support for Bundler 2.0's new `gems.rb` and `gems.locked`. Learn more about these in [Gemfile's new clothes](https://depfu.com/blog/2017/09/06/gemfiles-new-clothes). Closes GH-1982.
+ * Removes Debian packages for Ubuntu 12.04 Precise.
+ * Fixes compilation warnings on macOS + Clang 9.0.
+ * Introduces a new check that logs a vulnerability warning if Passenger is run with root permissions while the directory permissions of (parts of) its root dir allow modifications by non-root users.
+ * Fixes an arbitrary file read vulnerability (if Passenger is running as root and the attacker has access to a user account that hosts an application).
+
+
+Release 5.1.10
+--------------
+
+ * This was an Enterprise-only hotfix release (no changes in Passenger Open Source).
+
+
+Release 5.1.9
+-------------
+
+ * This was an Enterprise-only hotfix release (no changes in Passenger Open Source).
+
+
+Release 5.1.8
+-------------
+
+ * Introduces a shorter and more informative log format. The new format significantly shortens the thread ID, and includes the message's log level (critical, error, warning, notice, etc) so that users can more easily filter out uninteresting messages.
+ * [Nginx] The Phusion Nginx APT package is upgraded to Nginx version 1.12.1 (previously pinned at 1.10.3 while waiting for a compatible lua module release).
+ * [Standalone] Automatically uses Nginx to serves static asset URLs that conform to the [webpacker](https://github.com/rails/webpacker) gem's format. Closes GH-1966.
+ * [Standalone] If configured to listen on a Unix domain socket, properly cleans up this socket on Nginx shutdown. Fixes a regression from 5.1.6. Closes GH-1969.
+ * [Standalone] Fixes the `--max-requests` option when using the builtin engine. Fixes a regression from 5.1.4.
+ * [Enterprise] Fixes a potential use-after-free bug when reporting usage data to the Phusion licensing server. This bug only occurs when Passenger Enterprise is running inside a container.
+
+
+Release 5.1.7
+-------------
+
+ * Fixes compilation problems on some systems.
+ * Upgrades the JSON parser (json-cpp) to version 1.8.1. This makes parsing slightly faster, adds various security checks and fixes some JSON generation issues.
+ * [Enterprise] Fixes an SSL certificate issue in the license usage data reporter, which only occurs when Passenger Enterprise installed from gem or tarball. The license usage data reporter now searches for the correct system CA path.
+ * [Enterprise] Fixes a potential use-after-free bug when reporting usage data to the Phusion licensing server, and improves reliability of usage data recording.
+
+
+Release 5.1.6
+-------------
+
+ * Fixes a typo that causes a looping crash when long security update information is sent by the server. In practice we will keep the messages shorter to avoid triggering this until there has been ample time to upgrade.
+ * Fixes unnecessary process respawn if it was detached and min_instances is set to 0. Closes GH-1735.
+ * Introduces APT packages for Debian 9 "Stretch", with Passenger built as dynamic module. Closes GH-1960.
+ * Changes APT packages for Ubuntu 17.04 "Zesty" from static to dynamic module.
+ * [Standalone] Now uses graceful shutdown for the Nginx engine under the hood (requested as part of GH-1598). Thanks to PikachuEXE for contributing this.
+ * [Standalone] Fixes a memory corruption issue in the builtin engine. The issue was introduced in 5.1.5 (settings handling refactoring).
+ * [Standalone] Cleanup the temp dir before aborting when startup cannot continue, e.g. when Passenger is already running. Closes GH-1953.
+ * Fixes WSGI crash with Python 3 and non-ASCII characters in headers or the URL. Closes GH-1935. Thanks to n4nn31355 for the assistance.
+ * [Nginx] The preferred Nginx version is now 1.12.1 (previously 1.10.3), except for the Phusion Nginx APT package, which is pinned at 1.10.3 until an 1.12.x compatible lua module becomes available.
+ * [Nginx] Fixes CVE-2017-7529, an integer overflow vulnerability in the Nginx range filter module. This is accomplished by upgrading to Nginx 1.12.1, or applying the patch (Phusion Nginx APT package).
+ * Updated libcurl version used in precompiled binaries (used for e.g. gem installs) to 7.54.1 (was: 7.54.0).
+ * Updated OpenSSL version used in precompiled binaries (used for e.g. gem installs) to 1.0.2l (was: 1.0.2k).
+ * Updated GeoIP version used in precompiled binaries (used for e.g. gem installs) to 1.6.11 (was: 1.6.9).
+ * Updated PCRE version used in precompiled binaries (used for e.g. gem installs) to 8.40 (was: 8.39).
+ * Adds support for building with MacPorts' OpenSSL. Closes GH-1959.
+
+
+Release 5.1.5
+-------------
+
+ * Updated Boost to version 1.64.0, which fixed a compilation issue on certain Gentoo based setups. Closes GH-1942.
+ * Improved the error message shown when an app fails to start in time.
+ * [Apache] Remove option to configure PassengerAppGroupName from .htaccess because, assuming AllowOverride Options is set, malicious users (having an account on the same server) can sometimes collide app group names of other users and capture their traffic.
+ * Major internal refactoring of settings handling, to prepare for supporting settings changes without restart.
+
+
+Release 5.1.4
+-------------
+
+ * Updated zlib version used in building precompiled binaries (used for e.g. gem installs) to 1.2.11 (was: 1.2.8).
+ * Updated openssl version used in building precompiled binaries (used for e.g. gem installs) to 1.0.2k (was: 1.0.2j).
+ * Updated curl version used in building precompiled binaries (used for e.g. gem installs) to 7.54.0 (was: 7.51.0).
+ * Added support for rbenv when building precompiled binaries (passenger_binary_build_automation submodule).
+ * Fixes issue when building precompiled binaries (used for e.g. gem installs) found in release 5.1.3.
+ * Added Ruby 2.4.1 precompiled native extension.
+
+
+Release 5.1.3
+-------------
+
+ * [Standalone] Fixes `install-standalone-runtime` command after regression in 5.1.2.
+ * Removes unnecessary logging of "No Error" from macOS Security Update Checker.
+ * Adds support for compiling against the built-in Apache installation supplied with macOS 10.12 Sierra. Previous versions of Passenger failed because macOS Sierra's Apache installation is incomplete and does not supply the apr-config tool. We now work around this by using hardcoded default values for macOS.
+ * Don't output colorized text during dependency check when output isn't a TTY, unless forced. Closes GH-1902.
+ * [Nginx] The preferred Nginx version is now 1.10.3 (previously 1.10.2).
+ * Adds Ubuntu 17.04 "Zesty" packages.
+ * [Enterprise] Fixes `send-cloud-usage` command when Passenger is installed from gem.
+ * [Enterprise] Improves robustness of machine properties reporting for pay-as-you-go cloud-license holders.
+ * [Enterprise] Adds support for reporting available RAM, and CONTAINER_HOST_IDENTIFIER envvar, to support RAM-based pricing model.
+ * Added additional debug level logging for troubleshooting issues with bash scripts. Closes GH-1928.
+ * Revert private keychain use in the Security Update Checker when run as root on macOS, in order to avoid changing the default System Keychain. Closes GH-1922. Remove Cert and Key from keychain separately, to avoid errors when clearing the client certificate.
+ * Fix missing openssl check in `passenger-install-apache2-module` dependency checker. Closes GH-1934.
+
+
+Release 5.1.2
+-------------
+
+ * Improve curl check for passenger-install- scripts to catch (very old) curl versions that won't compile against 5.1+.
+ * Fixes remaining false positives (logging) from the new Meteor cluster warning system. Closes GH-1905.
+ * Create a private keychain on macOS when the system keychain is defaulted to, this avoids a permissions issue with the system keychain when performing the Security Update Check. This is necessary because the system keychain is the default keychain of daemon users and root on macOS.
+ * Improve `passenger-memory-stats` to include JRuby processes that fail to rename as expected. Closes GH-1878.
+ * [Standalone] Don't download or compile Nginx when using the builtin engine. Closes GH-1910.
+ * [Standalone] Fixes `--nginx-tarball` option of `passenger start` and `passenger-config install-standalone-runtime` (wasn't working). Also verifies that `--nginx-version` is explicitly specified as it should be.
+
+
+Release 5.1.1
+-------------
+
+ * The precompiled version of the PassengerAgent binary (used for e.g. gem installs) now configures (statically linked) libcurl with system keystore, so that the new security update check can successfully validate certs.
+ * Fixes some false positives (logging) from the new Node and Meteor cluster warning system. Logging is less repetitive and has extra debug info. Closes GH-1905.
+ * Updates the upload-progress module in the Nginx Debian package. The module version that we linked against in 5.1.0 was 0.9.2, but due to a bug in that version the module didn't work.
+ * The security update check now reports whether libcurl + SSL backend are statically linked to Passenger, in which case the check also needs to warn about relevant OpenSSL vulnerabilities in the linked library.
+ * Increases the allowed line lengths emitted by apps at startup.
+ * Adds support for the unary 'not' operator in the Union Station filter language.
+ * [Enterprise] Add missing flying-passenger integration mode to security update check. 
+ * Fixes support for Rails 5.0.1 Action Cable. Specifically, we now support the `options` argument in the `write_nonblock` method in hijacked Rack IO sockets.
+ * [Apache] Introduces a small delay to prevent running the Security Update Checker twice at startup.
+
+
+Release 5.1.0
+--------------
 
  * Upgrades union_station_hooks_core to version 2.1.2.
  * [Enterprise] When running a Rails app in multithreaded mode, Passenger Enterprise automatically tags Rails logs with the current thread number. This makes it possible to distinguish logs generated by different threads.
@@ -16,9 +165,16 @@ Next version (not yet released)
  * Fixes an issue where passenger-config couldn't restart an app if the TMPDIR variable was set to /tmp
  * `passenger-install-apache-module` now suggests the correct apache package on Ubuntu Xenial. Closes GH-1884.
  * [Standalone] The TempDirToucher will now spend most of its time with reduced privileges, except when it's actively touching files. This allows it to be killed when Passenger is quit in most circumstances. Closes GH-1678.
+ * Fixes a file overwrite vulnerability (CVE-2016-10345) caused by a predictable temporary file being written by `passenger-install-nginx-module`. Thanks to Jeremy Evans for reporting this.
  * [Standalone] Fixes starting Passenger as a non-extant user. Closes GH-1849.
  * Improved look of the error pages for failing to spawn an application (development & production mode), and Error ID is now also shown in production mode.
  * [Standalone] Enable ipv6 support by default in builtin nginx. Closes GH-1873.
+ * [Nginx] Updates to APT package builder (Debian & Ubuntu) with fix for www-data to root privilege escalation via log file handling (CVE-2016-1247/USN-3114-1).
+ * [Nginx] Updates to RPM package builder (CentOS & RHEL) with fix for 1.10.x system nginx package overriding the nginx from the Passenger repo. Closes GH-1895.
+ * [Nginx] The preferred Nginx version is now 1.10.2 (previously 1.10.1).
+ * RPM pkg builder fix for breaking SELinux change in RHEL 7.3.
+ * RPM pkg builder fix for RHEL6/CentOS6 incompatibility and replacement in Passenger.
+ * Adds Ubuntu 16.10 "Yakkety" packages.
 
 
 Release 5.0.30
@@ -41,6 +197,7 @@ Release 5.0.29
  * [Nginx] The preferred Nginx version is now 1.10.1 (previously 1.10.0).
  * [Nginx] The preferred PCRE version is now 8.39 (previously 8.34).
  * [Standalone] Passenger Standalone now supports /dev/stdout and /dev/stderr as log file path (via `--log-file` or Passengerfile.json). This is especially useful in Docker containers. In previous versions logging to those paths did not work, resulting in nothing getting logged at all.
+ * Adds Ubuntu 16.04 "Xenial" packages, deprecates Ubuntu 15.10 “Wily” packages (in accordance with LTS support policy).
 
 
 Release 5.0.28

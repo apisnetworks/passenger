@@ -1,14 +1,30 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2011-2016 Phusion Holding B.V.
+ *  Copyright (c) 2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
  *
- *  See LICENSE file for license information.
+ *  Permission is hereby granted, free of charge, to any person obtaining a copy
+ *  of this software and associated documentation files (the "Software"), to deal
+ *  in the Software without restriction, including without limitation the rights
+ *  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ *  copies of the Software, and to permit persons to whom the Software is
+ *  furnished to do so, subject to the following conditions:
+ *
+ *  The above copyright notice and this permission notice shall be included in
+ *  all copies or substantial portions of the Software.
+ *
+ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ *  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ *  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ *  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ *  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ *  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ *  THE SOFTWARE.
  */
-#ifndef _PASSENGER_UPDATE_CHECKER_H_
-#define _PASSENGER_UPDATE_CHECKER_H_
+#ifndef _PASSENGER_SECURITY_UPDATE_CHECKER_H_
+#define _PASSENGER_SECURITY_UPDATE_CHECKER_H_
 
 #include <string>
 #include <oxt/thread.hpp>
@@ -18,16 +34,22 @@
 #include <Utils/Curl.h>
 #include <modp_b64.h>
 
+#if BOOST_OS_MACOS
+	#include <sys/syslimits.h>
+	#include <unistd.h>
+#endif
+
 namespace Passenger {
 
 using namespace std;
 using namespace oxt;
 
+
 #define CHECK_HOST_DEFAULT "securitycheck.phusionpassenger.com"
 
 #define CHECK_URL_DEFAULT "https://" CHECK_HOST_DEFAULT ":443/v1/check.json"
-#define MIN_CHECK_BACKOFF_SEC 12 * 60 * 60
-#define MAX_CHECK_BACKOFF_SEC 7 * 24 * 60 * 60
+#define MIN_CHECK_BACKOFF_SEC (12 * 60 * 60)
+#define MAX_CHECK_BACKOFF_SEC (7 * 24 * 60 * 60)
 
 // Password for the .p12 client certificate (because .p12 is required to be pwd protected on some
 // implementations). We're OK with hardcoding because the certs are not secret anyway, and they're not used
@@ -36,6 +58,7 @@ using namespace oxt;
 #define CLIENT_CERT_LABEL "Phusion Passenger Open Source"
 
 #define POSSIBLE_MITM_RESOLUTION "(if this error persists check your connection security or try upgrading " SHORT_PROGRAM_NAME ")"
+
 /**
  * If started, this class periodically (default: daily, immediate start) checks whether there are any important
  * security updates available (updates that don't fix security issues are not reported). The result is logged
@@ -57,7 +80,9 @@ private:
 
 	void threadMain() {
 		TRACE_POINT();
-		while (!this_thread::interruption_requested()) {
+		// Sleep for a short while to allow interruption during the Apache integration double startup procedure, this prevents running the update check twice
+		boost::this_thread::sleep_for(boost::chrono::seconds(2));
+		while (!boost::this_thread::interruption_requested()) {
 			UPDATE_TRACE_POINT();
 			int backoffMin = 0;
 			try {
@@ -114,12 +139,19 @@ private:
 						"truststore is valid. If the problem persists, you can also try upgrading or reinstalling " SHORT_PROGRAM_NAME);
 				break;
 
+			case CURLE_SSL_CACERT_BADFILE:
+				error.append(" while connecting to " CHECK_URL_DEFAULT " " +
+						(proxyAddress.empty() ? "" : "using proxy " + proxyAddress) + "; this might happen if the nss backend "
+						"is installed for libcurl instead of GnuTLS or OpenSSL. If the problem persists, you can also try upgrading "
+						"or reinstalling " SHORT_PROGRAM_NAME);
+				break;
+
 			// Fallthroughs to default:
 			case CURLE_SSL_CONNECT_ERROR:
 				// A problem occurred somewhere in the SSL/TLS handshake. Not sure what's up, but in this case the
 				// error buffer (printed in DEBUG) should pinpoint the problem slightly more.
 			case CURLE_OPERATION_TIMEDOUT:
-				// This is not a normal connect timeout, there are some refs to it occuring while downloading large
+				// This is not a normal connect timeout, there are some refs to it occurring while downloading large
 				// files, but we don't do that so fall through to default.
 			default:
 				error.append(" while connecting to " CHECK_URL_DEFAULT " " +
@@ -184,6 +216,9 @@ private:
 	 */
 	CURLcode prepareCurlPOST(CURL *curl, string &bodyJsonString, string *responseData, struct curl_slist **chunk) {
 		CURLcode code;
+
+		// Hint for advanced debugging: curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+
 		if (CURLE_OK != (code = curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1))) {
 			return code;
 		}
@@ -203,17 +238,26 @@ private:
 		if (CURLE_OK != (code = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, *chunk))) {
 			return code;
 		}
+
 #if BOOST_OS_MACOS
-		crypto->preAuthKey(clientCertPath.c_str(), CLIENT_CERT_PWD, CLIENT_CERT_LABEL);
-#endif
-		if (CURLE_OK != (code = curl_easy_setopt(curl, CURLOPT_SSLCERT, clientCertPath.c_str()))) {
-			return code;
+		// preauth the security update check key in the user's keychain (this is for libcurl's benefit because they don't bother to authorize themselves to use the keys they import)
+		if (!crypto->preAuthKey(clientCertPath.c_str(), CLIENT_CERT_PWD, CLIENT_CERT_LABEL)) {
+			return CURLE_SSL_CERTPROBLEM;
 		}
 		if (CURLE_OK != (code = curl_easy_setopt(curl, CURLOPT_SSLCERTTYPE, "P12"))) {
 			return code;
 		}
 		if (CURLE_OK != (code = curl_easy_setopt(curl, CURLOPT_SSLCERTPASSWD, CLIENT_CERT_PWD))) {
 		 	return code;
+		}
+#else
+		if (CURLE_OK != (code = curl_easy_setopt(curl, CURLOPT_SSLCERTTYPE, "PEM"))) {
+			return code;
+		}
+#endif
+
+		if (CURLE_OK != (code = curl_easy_setopt(curl, CURLOPT_SSLCERT, clientCertPath.c_str()))) {
+			return code;
 		}
 
 		// These should be on by default, but make sure.
@@ -261,11 +305,15 @@ public:
 	 * serverIntegration should be one of { nginx, apache, standalone nginx, standalone builtin }, whereby
 	 * serverVersion is the version of Nginx or Apache, if relevant (otherwise empty)
 	 */
-	SecurityUpdateChecker(const ResourceLocator &locator, const string &proxy, const string &serverIntegration, const string &serverVersion) {
+	SecurityUpdateChecker(const ResourceLocator &locator, const string &proxy, const string &serverIntegration, const string &serverVersion, const string &instancePath) {
 		crypto = new Crypto();
 		updateCheckThread = NULL;
 		checkIntervalSec = 0;
+#if BOOST_OS_MACOS
 		clientCertPath = locator.getResourcesDir() + "/update_check_client_cert.p12";
+#else
+		clientCertPath = locator.getResourcesDir() + "/update_check_client_cert.pem";
+#endif
 		serverPubKeyPath = locator.getResourcesDir() + "/update_check_server_pubkey.pem";
 		proxyAddress = proxy;
 		this->serverIntegration = serverIntegration;
@@ -367,6 +415,7 @@ public:
 
 		bodyJson["server_integration"] = serverIntegration;
 		bodyJson["server_version"] = serverVersion;
+		bodyJson["curl_static"] = isCurlStaticallyLinked();
 
 		string nonce;
 		if (!fillNonce(nonce)) {
@@ -394,6 +443,12 @@ public:
 				logUpdateFail("File not readable: " + clientCertPath);
 				break;
 			}
+
+			if (CURLE_OK != (code = setCurlDefaultCaInfo(curl))) {
+				logUpdateFailCurl(code);
+				break;
+			}
+
 			// string localApprovedCert = "/your/ca.crt"; // for testing against a local server
 			// curl_easy_setopt(curl, CURLOPT_CAINFO, localApprovedCert.c_str());
 
@@ -409,6 +464,7 @@ public:
 				break;
 			}
 
+			P_DEBUG("sending: " << bodyJsonString);
 			if (CURLE_OK != (code = sendAndReceive(curl, &responseData, &responseCode))) {
 				logUpdateFailCurl(code);
 				break;
@@ -426,6 +482,7 @@ public:
 				logUpdateFailResponse("json parse", responseData);
 				break;
 			}
+			P_DEBUG("received: " << responseData);
 
 			// 3b. Verify response: signature
 			if (!responseJson.isObject() || !responseJson["data"].isString() || !responseJson["signature"].isString()) {
@@ -436,8 +493,8 @@ public:
 			string signature64 = responseJson["signature"].asString();
 			string data64 = responseJson["data"].asString();
 
-			signatureChars = (char *)malloc(signature64.length() + 1);
-			dataChars = (char *)malloc(signature64.length() + 1);
+			signatureChars = (char *)malloc(modp_b64_decode_len(signature64.length()));
+			dataChars = (char *)malloc(modp_b64_decode_len(data64.length()));
 			if (signatureChars == NULL || dataChars == NULL) {
 				logUpdateFailResponse("out of memory", responseData);
 				break;
@@ -468,6 +525,7 @@ public:
 				logUpdateFailResponse("unparseable data", responseData);
 				break;
 			}
+			P_DEBUG("data content (signature OK): " << responseDataJson.toStyledString());
 
 			if (!responseDataJson.isObject() || !responseDataJson["update"].isInt() || !responseDataJson["nonce"].isString()) {
 				logUpdateFailResponse("missing data fields", responseData);
@@ -510,6 +568,7 @@ public:
 		} while (0);
 
 #if BOOST_OS_MACOS
+		// remove the security update check key from the user's keychain so that if we are stopped/crash and are upgraded or reinstalled before restarting we don't have permission problems
 		crypto->killKey(CLIENT_CERT_LABEL);
 #endif
 
@@ -532,6 +591,7 @@ public:
 	}
 
 };
-}
 
-#endif /* _PASSENGER_UPDATE_CHECKER_H_ */
+} // namespace Passenger
+
+#endif /* _PASSENGER_SECURITY_UPDATE_CHECKER_H_ */

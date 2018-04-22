@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2014-2015 Phusion Holding B.V.
+ *  Copyright (c) 2014-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -29,7 +29,7 @@
 #include <oxt/macros.hpp>
 #include <sys/types.h>
 #include <unistd.h>
-#include <Logging.h>
+#include <LoggingKit/LoggingKit.h>
 #include <MemoryKit/mbuf.h>
 #include <ServerKit/FileBufferedChannel.h>
 

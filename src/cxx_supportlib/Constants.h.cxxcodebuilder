@@ -1,6 +1,6 @@
 # encoding: utf-8
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2010-2016 Phusion Holding B.V.
+#  Copyright (c) 2010-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -23,7 +23,10 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 
-comment copyright_header_for(__FILE__)
+# This file uses the cxxcodebuilder API. Learn more at:
+# https://github.com/phusion/cxxcodebuilder
+
+comment copyright_header_for(__FILE__), 1
 
 guard_macros '_PASSENGER_CONSTANTS_H_' do
   comment %q{

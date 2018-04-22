@@ -1,7 +1,7 @@
 /*
  * Copyright (C) Igor Sysoev
  * Copyright (C) 2007 Manlio Perillo (manlio.perillo@gmail.com)
- * Copyright (c) 2010-2015 Phusion Holding B.V.
+ * Copyright (c) 2010-2017 Phusion Holding B.V.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -55,4 +55,3 @@ ngx_int_t passenger_content_handler(ngx_http_request_t *r);
 
 
 #endif /* _PASSENGER_NGINX_CONTENT_HANDLER_H_ */
-

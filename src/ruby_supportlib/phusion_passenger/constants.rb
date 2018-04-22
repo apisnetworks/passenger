@@ -1,5 +1,5 @@
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2010-2015 Phusion Holding B.V.
+#  Copyright (c) 2010-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -43,6 +43,9 @@ module PhusionPassenger
   module SharedConstants
     # Default config values
     DEFAULT_LOG_LEVEL = 3
+    DEFAULT_LOG_LEVEL_NAME = "notice"
+    DEFAULT_APP_OUTPUT_LOG_LEVEL = 3
+    DEFAULT_APP_OUTPUT_LOG_LEVEL_NAME = "notice"
     DEFAULT_INTEGRATION_MODE = "standalone"
     DEFAULT_SOCKET_BACKLOG = 2048
     DEFAULT_RUBY = "ruby"
@@ -69,7 +72,6 @@ module PhusionPassenger
     DEFAULT_UNION_STATION_GATEWAY_ADDRESS = "gateway.unionstationapp.com"
     DEFAULT_UNION_STATION_GATEWAY_PORT = 443
     DEFAULT_HTTP_SERVER_LISTEN_ADDRESS = "tcp://127.0.0.1:3000"
-    DEFAULT_UST_ROUTER_LISTEN_ADDRESS = "tcp://127.0.0.1:9344"
     DEFAULT_LVE_MIN_UID = 500
 
     # Size limits
@@ -77,13 +79,13 @@ module PhusionPassenger
     MESSAGE_SERVER_MAX_PASSWORD_SIZE = 100
     POOL_HELPER_THREAD_STACK_SIZE = 1024 * 256
     # Small mbuf sizes avoid memory overhead (up to 1 blocksize per request), but
-    # also introduce context switching and smaller transfer writes. The size is picked 
+    # also introduce context switching and smaller transfer writes. The size is picked
     # to balance this out.
     DEFAULT_MBUF_CHUNK_SIZE = 1024 * 4
     # Affects input and output buffering (between app and client). Threshold is picked
     # such that it fits most output (i.e. html page size, not assets), and allows for
-    # high concurrency with low mem overhead. On the upload side there is a penalty 
-    # but there's no real average upload size anyway so we choose mem safety instead. 
+    # high concurrency with low mem overhead. On the upload side there is a penalty
+    # but there's no real average upload size anyway so we choose mem safety instead.
     DEFAULT_FILE_BUFFERED_CHANNEL_THRESHOLD = 1024 * 128
     SERVER_KIT_MAX_SERVER_ENDPOINTS = 4
 
@@ -96,7 +98,7 @@ module PhusionPassenger
     PASSENGER_API_VERSION_MAJOR = 0
     PASSENGER_API_VERSION_MINOR = 3
     PASSENGER_API_VERSION = "#{PASSENGER_API_VERSION_MAJOR}.#{PASSENGER_API_VERSION_MINOR}"
-    SERVER_INSTANCE_DIR_STRUCTURE_MAJOR_VERSION = 3
+    SERVER_INSTANCE_DIR_STRUCTURE_MAJOR_VERSION = 4
     SERVER_INSTANCE_DIR_STRUCTURE_MINOR_VERSION = 0
     SERVER_INSTANCE_DIR_STRUCTURE_MIN_SUPPORTED_MINOR_VERSION = 0
 
@@ -106,7 +108,7 @@ module PhusionPassenger
     SHORT_PROGRAM_NAME = "Passenger"
     SERVER_TOKEN_NAME = "Phusion_Passenger"
     FLYING_PASSENGER_NAME = "Flying Passenger"
-    SUPPORT_URL         = "https://www.phusionpassenger.com/documentation_and_support"
+    SUPPORT_URL         = "https://www.phusionpassenger.com/support"
     ENTERPRISE_URL      = "https://www.phusionpassenger.com/enterprise"
     GLOBAL_NAMESPACE_DIRNAME            = PhusionPassenger::GLOBAL_NAMESPACE_DIRNAME_
     # Subdirectory under $HOME to use for storing stuff.

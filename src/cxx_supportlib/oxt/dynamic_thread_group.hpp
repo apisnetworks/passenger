@@ -2,7 +2,7 @@
  * OXT - OS eXtensions for boosT
  * Provides important functionality necessary for writing robust server software.
  *
- * Copyright (c) 2010-2015 Phusion Holding B.V.
+ * Copyright (c) 2010-2017 Phusion Holding B.V.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -115,8 +115,8 @@ private:
 		}
 
 		~thread_cleanup() {
-			this_thread::disable_interruption di;
-			this_thread::disable_syscall_interruption dsi;
+			boost::this_thread::disable_interruption di;
+			boost::this_thread::disable_syscall_interruption dsi;
 			boost::lock_guard<boost::mutex> l(thread_group->lock);
 			if (!handle->removed_from_list) {
 				thread_group->thread_handles.erase(handle->iterator);
@@ -210,7 +210,7 @@ public:
 		unsigned int i = 0;
 
 		// We make a copy so that the handles aren't destroyed prematurely.
-		threads.reserve(nthreads);
+		threads.resize(nthreads);
 		thread_handles_copy = thread_handles;
 		for (it = thread_handles.begin(); it != thread_handles.end(); it++, i++) {
 			handle = *it;
@@ -235,7 +235,7 @@ public:
 		unsigned int i = 0;
 
 		// We make a copy so that the handles aren't destroyed prematurely.
-		threads.reserve(nthreads);
+		threads.resize(nthreads);
 		thread_handles_copy = thread_handles;
 		for (it = thread_handles.begin(); it != thread_handles.end(); it++, i++) {
 			handle = *it;

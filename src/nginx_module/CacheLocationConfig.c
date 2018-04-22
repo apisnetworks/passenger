@@ -1,27 +1,27 @@
 /*
- * Phusion Passenger - https://www.phusionpassenger.com/
- * Copyright (c) 2010-2016 Phusion Holding B.V.
+ *  Phusion Passenger - https://www.phusionpassenger.com/
+ *  Copyright (c) 2010-2017 Phusion Holding B.V.
  *
- * "Passenger", "Phusion Passenger" and "Union Station" are registered
- * trademarks of Phusion Holding B.V.
+ *  "Passenger", "Phusion Passenger" and "Union Station" are registered
+ *  trademarks of Phusion Holding B.V.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
+ *  Permission is hereby granted, free of charge, to any person obtaining a copy
+ *  of this software and associated documentation files (the "Software"), to deal
+ *  in the Software without restriction, including without limitation the rights
+ *  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ *  copies of the Software, and to permit persons to whom the Software is
+ *  furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
+ *  The above copyright notice and this permission notice shall be included in
+ *  all copies or substantial portions of the Software.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ *  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ *  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ *  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ *  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ *  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ *  THE SOFTWARE.
  */
 
 /*
@@ -47,39 +47,6 @@ generated_cache_location_part(ngx_conf_t *cf, passenger_loc_conf_t *conf) {
     /*
      * Calculate lengths
      */
-
-    if (conf->socket_backlog != NGX_CONF_UNSET) {
-        end = ngx_snprintf(int_buf,
-            sizeof(int_buf) - 1,
-            "%d",
-            conf->socket_backlog);
-        len += sizeof("!~PASSENGER_SOCKET_BACKLOG: ") - 1;
-        len += end - int_buf;
-        len += sizeof("\r\n") - 1;
-    }
-
-    if (conf->core_file_descriptor_ulimit != NGX_CONF_UNSET_UINT) {
-        end = ngx_snprintf(int_buf,
-            sizeof(int_buf) - 1,
-            "%ui",
-            conf->core_file_descriptor_ulimit);
-        len += sizeof("!~PASSENGER_CORE_FILE_DESCRIPTOR_ULIMIT: ") - 1;
-        len += end - int_buf;
-        len += sizeof("\r\n") - 1;
-    }
-
-    if (conf->disable_security_update_check != NGX_CONF_UNSET) {
-        len += sizeof("!~DISABLE_SECURITY_UPDATE_CHECK: ") - 1;
-        len += conf->disable_security_update_check
-            ? sizeof("t\r\n") - 1
-            : sizeof("f\r\n") - 1;
-    }
-
-    if (conf->security_update_check_proxy.data != NULL) {
-        len += sizeof("!~SECURITY_UPDATE_CHECK_PROXY: ") - 1;
-        len += conf->security_update_check_proxy.len;
-        len += sizeof("\r\n") - 1;
-    }
 
     if (conf->app_file_descriptor_ulimit != NGX_CONF_UNSET_UINT) {
         end = ngx_snprintf(int_buf,
@@ -316,48 +283,6 @@ generated_cache_location_part(ngx_conf_t *cf, passenger_loc_conf_t *conf) {
         return 0;
     }
 
-    if (conf->socket_backlog != NGX_CONF_UNSET) {
-        pos = ngx_copy(pos,
-            "!~PASSENGER_SOCKET_BACKLOG: ",
-            sizeof("!~PASSENGER_SOCKET_BACKLOG: ") - 1);
-        end = ngx_snprintf(int_buf,
-            sizeof(int_buf) - 1,
-            "%d",
-            conf->socket_backlog);
-        pos = ngx_copy(pos, int_buf, end - int_buf);
-        pos = ngx_copy(pos, (const u_char *) "\r\n", sizeof("\r\n") - 1);
-    }
-    if (conf->core_file_descriptor_ulimit != NGX_CONF_UNSET_UINT) {
-        pos = ngx_copy(pos,
-            "!~PASSENGER_CORE_FILE_DESCRIPTOR_ULIMIT: ",
-            sizeof("!~PASSENGER_CORE_FILE_DESCRIPTOR_ULIMIT: ") - 1);
-        end = ngx_snprintf(int_buf,
-            sizeof(int_buf) - 1,
-            "%ui",
-            conf->core_file_descriptor_ulimit);
-        pos = ngx_copy(pos, int_buf, end - int_buf);
-        pos = ngx_copy(pos, (const u_char *) "\r\n", sizeof("\r\n") - 1);
-    }
-    if (conf->disable_security_update_check != NGX_CONF_UNSET) {
-        pos = ngx_copy(pos,
-            "!~DISABLE_SECURITY_UPDATE_CHECK: ",
-            sizeof("!~DISABLE_SECURITY_UPDATE_CHECK: ") - 1);
-        if (conf->disable_security_update_check) {
-            pos = ngx_copy(pos, "t\r\n", sizeof("t\r\n") - 1);
-        } else {
-            pos = ngx_copy(pos, "f\r\n", sizeof("f\r\n") - 1);
-        }
-    }
-
-    if (conf->security_update_check_proxy.data != NULL) {
-        pos = ngx_copy(pos,
-            "!~SECURITY_UPDATE_CHECK_PROXY: ",
-            sizeof("!~SECURITY_UPDATE_CHECK_PROXY: ") - 1);
-        pos = ngx_copy(pos,
-            conf->security_update_check_proxy.data,
-            conf->security_update_check_proxy.len);
-        pos = ngx_copy(pos, (const u_char *) "\r\n", sizeof("\r\n") - 1);
-    }
     if (conf->app_file_descriptor_ulimit != NGX_CONF_UNSET_UINT) {
         pos = ngx_copy(pos,
             "!~PASSENGER_APP_FILE_DESCRIPTOR_ULIMIT: ",

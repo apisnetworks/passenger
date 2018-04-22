@@ -1,7 +1,7 @@
 /*
  * twemproxy - A fast and lightweight proxy for memcached protocol.
  * Copyright (C) 2011 Twitter, Inc.
- * Copyright (C) 2014-2016 Phusion Holding B.V.
+ * Copyright (C) 2014-2017 Phusion Holding B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 #include <algorithm>
 #include <ostream>
 #include <MemoryKit/mbuf.h>
-#include <Logging.h>
+#include <LoggingKit/LoggingKit.h>
 #include <StaticString.h>
 #include <Utils/StrIntUtils.h>
 

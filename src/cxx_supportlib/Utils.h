@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2010-2014 Phusion Holding B.V.
+ *  Copyright (c) 2010-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -148,7 +148,8 @@ FileType getFileType(const StaticString &filename, CachedFileStat *cstat = 0,
 void createFile(const string &filename, const StaticString &contents,
                 mode_t permissions = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH,
                 uid_t owner = USER_NOT_GIVEN, gid_t group = GROUP_NOT_GIVEN,
-                bool overwrite = true);
+                bool overwrite = true,
+                const char *callerFile = NULL, unsigned int callerLine = 0);
 
 /**
  * Returns a canonical version of the specified path. All symbolic links
@@ -321,69 +322,6 @@ string getHostName();
 string getSignalName(int sig);
 
 /**
- * Resets the current process's signal handler disposition and signal mask
- * to default values. One should call this every time one forks a child process;
- * non-default signal masks/handler dispositions can cause all kinds of weird quirks,
- * like waitpid() malfunctioning on OS X.
- *
- * This function is async-signal safe.
- */
-void resetSignalHandlersAndMask();
-
-/**
- * Disables malloc() debugging facilities on OS X.
- */
-void disableMallocDebugging();
-
-/**
- * Like system(), but properly resets the signal handler mask,
- * disables malloc debugging and closes file descriptors > 2.
- * _command_ must be null-terminated.
- */
-int runShellCommand(const StaticString &command);
-
-/**
- * Run a command and capture its stdout output.
- *
- * @param command The argument to pass to execvp();
- * @throws SystemException.
- */
-string runCommandAndCaptureOutput(const char **command);
-
-/**
- * Async-signal safe way to fork().
- *
- * On Linux, the fork() glibc wrapper grabs a ptmalloc lock, so
- * if malloc causes a segfault then we can't fork.
- * http://sourceware.org/bugzilla/show_bug.cgi?id=4737
- *
- * OS X apparently does something similar, except they use a
- * spinlock so it results in 100% CPU. See _cthread_fork_prepare()
- * at http://www.opensource.apple.com/source/Libc/Libc-166/threads.subproj/cthreads.c
- * However, since POSIX in OS X is implemented on top of a Mach layer,
- * calling asyncFork() can mess up the state of the Mach layer, causing
- * some POSIX functions to mysteriously fail. See
- * https://code.google.com/p/phusion-passenger/issues/detail?id=1094
- * You should therefore not use asyncFork() unless you're in a signal
- * handler.
- */
-pid_t asyncFork();
-
-/**
- * Close all file descriptors that are higher than <em>lastToKeepOpen</em>.
- *
- * If you set `asyncSignalSafe` to true, then this function becomes fully async-signal,
- * through the use of asyncFork() instead of fork(). However, read the documentation
- * for asyncFork() to learn about its caveats.
- *
- * Also, regardless of whether `asyncSignalSafe` is true or not, this function is not
- * *thread* safe. Make sure there are no other threads running that might open file
- * descriptors, otherwise some file descriptors might not be closed even though they
- * should be.
- */
-void closeAllFileDescriptors(int lastToKeepOpen, bool asyncSignalSafe = false);
-
-/**
  * A no-op, but usually set as a breakpoint in gdb. See CONTRIBUTING.md.
  */
 void breakpoint();
@@ -391,4 +329,3 @@ void breakpoint();
 } // namespace Passenger
 
 #endif /* _PASSENGER_UTILS_H_ */
-

@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2010-2015 Phusion Holding B.V.
+ *  Copyright (c) 2010-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -60,7 +60,7 @@
 
 #include <StaticString.h>
 #include <Exceptions.h>
-#include <Utils.h>
+#include <ProcessManagement/Spawn.h>
 #include <Utils/ScopeGuard.h>
 #include <Utils/IOUtils.h>
 #include <Utils/StringScanning.h>
@@ -249,6 +249,17 @@ private:
 		return result;
 	}
 
+	static void afterFork() {
+		// Make ps nicer, we want to have as little impact on the rest
+		// of the system as possible while collecting the metrics.
+		int prio = getpriority(PRIO_PROCESS, getpid());
+		prio++;
+		if (prio > 20) {
+			prio = 20;
+		}
+		setpriority(PRIO_PROCESS, getpid(), prio);
+	}
+
 public:
 	ProcessMetricsCollector() {
 		#ifdef __APPLE__
@@ -270,8 +281,7 @@ public:
 	 * Returns a map which maps a given PID to its collected metrics.
 	 *
 	 * @throws ParseException The ps output cannot be parsed.
-	 * @throws SystemException
-	 * @throws RuntimeException
+	 * @throws SystemException Error collecting the ps output or error querying memory usage.
 	 */
 	template<typename Collection, typename ConstIterator>
 	ProcessMetricMap collect(const Collection &pids) const {
@@ -312,7 +322,11 @@ public:
 
 		string psOutput = this->psOutput;
 		if (psOutput.empty()) {
-			psOutput = runCommandAndCaptureOutput(command);
+			SubprocessInfo info;
+			runCommandAndCaptureOutput(command, info, psOutput, true, afterFork);
+			if (psOutput.empty()) {
+				throw RuntimeException("The 'ps' command failed");
+			}
 		}
 		pidsArg.resize(0);
 		fmtArg.resize(0);

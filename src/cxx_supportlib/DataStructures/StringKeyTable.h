@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2014 Phusion Holding B.V.
+ *  Copyright (c) 2014-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -27,7 +27,14 @@
 #define _PASSENGER_DATA_STRUCTURES_STRING_KEY_TABLE_H_
 
 #include <boost/move/move.hpp>
+#include <boost/config.hpp>
 #include <boost/cstdint.hpp>
+// for std::swap()
+#if __cplusplus >= 201103L
+	#include <utility>
+#else
+	#include <algorithm>
+#endif
 #include <limits>
 #include <cstring>
 #include <cassert>
@@ -245,7 +252,7 @@ private:
 	}
 
 	template<typename ValueType, typename LocalMoveSupport>
-	void realInsert(const HashedStaticString &key, ValueType val, bool overwrite) {
+	Cell *realInsert(const HashedStaticString &key, ValueType val, bool overwrite) {
 		assert(!key.empty());
 		assert(key.size() <= MAX_KEY_LENGTH);
 		assert(m_population < MAX_ITEMS);
@@ -271,18 +278,20 @@ private:
 					cell->hash = key.hash();
 					copyOrMoveValue(val, cell->value, LocalMoveSupport());
 					nonEmptyIndex = cell - &m_cells[0];
-					return;
+					return cell;
 				} else if (compareKeys(cellKey, cell->keyLength, key)) {
 					// Cell matches.
 					if (overwrite) {
 						copyOrMoveValue(val, cell->value, LocalMoveSupport());
 					}
-					return;
+					return cell;
 				} else {
 					cell = SKT_CIRCULAR_NEXT(cell);
 				}
 			}
 		}
+
+		return NULL; // Never reached
 	}
 
 public:
@@ -430,12 +439,12 @@ public:
 		}
 	}
 
-	void insert(const HashedStaticString &key, const T &val, bool overwrite = true) {
-		realInsert<const T &, SKT_DisableMoveSupport>(key, val, overwrite);
+	Cell *insert(const HashedStaticString &key, const T &val, bool overwrite = true) {
+		return realInsert<const T &, SKT_DisableMoveSupport>(key, val, overwrite);
 	}
 
-	void insertByMoving(const HashedStaticString &key, BOOST_RV_REF(T) val, bool overwrite = true) {
-		realInsert<BOOST_RV_REF(T), SKT_EnableMoveSupport>(key, boost::move(val), overwrite);
+	Cell *insertByMoving(const HashedStaticString &key, BOOST_RV_REF(T) val, bool overwrite = true) {
+		return realInsert<BOOST_RV_REF(T), SKT_EnableMoveSupport>(key, boost::move(val), overwrite);
 	}
 
 	void erase(Cell *cell) {
@@ -526,6 +535,16 @@ public:
 
 	bool empty() const {
 		return m_population == 0;
+	}
+
+	void swap(StringKeyTable<T, MoveSupport> &other) BOOST_NOEXCEPT_OR_NOTHROW {
+		std::swap(m_cells, other.m_cells);
+		std::swap(m_arraySize, other.m_arraySize);
+		std::swap(m_population, other.m_population);
+		std::swap(nonEmptyIndex, other.nonEmptyIndex);
+		std::swap(m_storage, other.m_storage);
+		std::swap(m_storageSize, other.m_storageSize);
+		std::swap(m_storageUsed, other.m_storageUsed);
 	}
 
 

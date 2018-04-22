@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2011-2016 Phusion Holding B.V.
+ *  Copyright (c) 2011-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -206,7 +206,7 @@ public:
 	}
 
 	/**
-	 * This Session object becomes fully unsable after closing.
+	 * This Session object becomes fully unusable after closing.
 	 */
 	virtual void close(bool success, bool wantKeepAlive = false) {
 		if (OXT_LIKELY(initiated())) {

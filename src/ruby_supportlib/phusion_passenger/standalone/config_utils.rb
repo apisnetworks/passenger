@@ -1,5 +1,5 @@
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2014-2015 Phusion Holding B.V.
+#  Copyright (c) 2014-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -174,7 +174,7 @@ module PhusionPassenger
       # We want the command line options to override the options in the local
       # config file, but the local config file could only be parsed when the
       # command line options have been parsed. This method remerges all the
-      # config options from different sources so that options are overriden
+      # config options from different sources so that options are overridden
       # according to the following order:
       #
       # - CONFIG_DEFAULTS
@@ -195,7 +195,7 @@ module PhusionPassenger
       end
 
       def find_pid_and_log_file(execution_root, options)
-        if options[:socket_file]
+        if !options[:socket_file].nil?
           pid_basename = 'passenger.pid'
           log_basename = 'passenger.log'
         else

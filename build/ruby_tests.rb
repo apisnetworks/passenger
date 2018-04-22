@@ -1,5 +1,5 @@
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2010-2014 Phusion Holding B.V.
+#  Copyright (c) 2010-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -28,8 +28,7 @@ dependencies = [NATIVE_SUPPORT_TARGET, AGENT_TARGET].compact
 desc "Run unit tests for the Ruby libraries"
 task 'test:ruby' => dependencies do
   if maybe_grep = string_option('E')
-    require 'shellwords'
-    maybe_grep = "-e #{Shellwords.escape(maybe_grep)}"
+    maybe_grep = "-e #{shesc maybe_grep}"
   end
   command = "rspec -c -f s --tty -P 'dont-autoload-anything' #{maybe_grep} ruby/*_spec.rb ruby/*/*_spec.rb"
   sh "cd test && exec bundle exec #{command}"

@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2010-2016 Phusion Holding B.V.
+ *  Copyright (c) 2010-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -42,8 +42,10 @@
 
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <sys/stat.h>
 #include <exception>
 #include <cstdio>
+#include <fcntl.h>
 #include <unistd.h>
 
 #include <oxt/initialize.hpp>
@@ -61,7 +63,7 @@
 #include <Utils/SystemTime.h>
 #include <Utils/HttpConstants.h>
 #include <Utils/ReleaseableScopedPointer.h>
-#include <Logging.h>
+#include <LoggingKit/LoggingKit.h>
 #include <WatchdogLauncher.h>
 #include <Constants.h>
 
@@ -358,6 +360,27 @@ private:
 		return m_hasModXsendfile == YES;
 	}
 
+	static bool stderrEqualsFile(const char *path) {
+		struct stat s1, s2;
+
+		if (fstat(STDERR_FILENO, &s1) == -1) {
+			return false;
+		}
+
+		// No O_CREAT: we don't care if the file does not exist.
+		int fd = open(path, O_WRONLY | O_APPEND, 0600);
+		if (fd == -1) {
+			return false;
+		}
+		if (fstat(fd, &s2) == -1) {
+			close(fd);
+			return false;
+		}
+		close(fd);
+
+		return s1.st_dev == s2.st_dev && s1.st_ino == s2.st_ino && s1.st_rdev == s2.st_rdev;
+	}
+
 	int reportBusyException(request_rec *r) {
 		ap_custom_response(r, HTTP_SERVICE_UNAVAILABLE,
 			"This website is too busy right now.  Please try again later.");
@@ -567,8 +590,8 @@ private:
 				return httpStatus;
 			}
 
-			this_thread::disable_interruption di;
-			this_thread::disable_syscall_interruption dsi;
+			boost::this_thread::disable_interruption di;
+			boost::this_thread::disable_syscall_interruption dsi;
 			bool expectingBody;
 
 			expectingBody = ap_should_client_block(r);
@@ -1240,20 +1263,34 @@ public:
 	{
 		passenger_postprocess_config(s);
 
-		Passenger::setLogLevel(serverConfig.logLevel);
+		Json::Value loggingConfig;
+		loggingConfig["level"] = LoggingKit::Level(serverConfig.logLevel);
+		loggingConfig["redirect_stderr"] = false;
 		if (serverConfig.logFile != NULL) {
-			int errcode;
-			if (!Passenger::setLogFileWithoutRedirectingStderr(serverConfig.logFile, &errcode)) {
-				fprintf(stderr,
-					"ERROR: cannot open log file %s: %s (errno=%d)\n",
-					serverConfig.logFile,
-					strerror(errcode),
-					errcode);
-			}
+			loggingConfig["target"] = serverConfig.logFile;
 		}
 		if (serverConfig.fileDescriptorLogFile != NULL) {
-			Passenger::setFileDescriptorLogFile(serverConfig.fileDescriptorLogFile);
+			loggingConfig["file_descriptor_log_target"] =
+				serverConfig.fileDescriptorLogFile;
 		}
+
+		vector<ConfigKit::Error> errors;
+		LoggingKit::ConfigChangeRequest req;
+		bool ok;
+		try {
+			ok = LoggingKit::context->prepareConfigChange(loggingConfig,
+				errors, req);
+		} catch (const std::exception &e) {
+			ok = false;
+			fprintf(stderr, "ERROR: unable to configure logging system: %s\n", e.what());
+		}
+		if (ok) {
+			LoggingKit::context->commitConfigChange(req);
+		} else {
+			fprintf(stderr, "ERROR: unable to configuring logging system: %s\n",
+				ConfigKit::toString(errors).c_str());
+		}
+
 		m_hasModRewrite = UNKNOWN;
 		m_hasModDir = UNKNOWN;
 		m_hasModAutoIndex = UNKNOWN;
@@ -1334,6 +1371,8 @@ public:
 				" with an explicit log file using the `PassengerLogFile` directive.");
 		} else {
 			params.set("log_file", ap_server_root_relative(pconf, s->error_fname));
+			params.setBool("log_file_is_stderr", stderrEqualsFile(
+				ap_server_root_relative(pconf, s->error_fname)));
 		}
 
 		serverConfig.ctl.addTo(params);
@@ -1561,9 +1600,11 @@ static Hooks *hooks = NULL;
 static apr_status_t
 destroy_hooks(void *arg) {
 	try {
-		this_thread::disable_interruption di;
-		this_thread::disable_syscall_interruption dsi;
+		boost::this_thread::disable_interruption di;
+		boost::this_thread::disable_syscall_interruption dsi;
 		P_DEBUG("Shutting down Phusion Passenger...");
+		LoggingKit::shutdown();
+		oxt::shutdown();
 		delete hooks;
 		hooks = NULL;
 	} catch (const thread_interrupted &) {
@@ -1598,6 +1639,7 @@ init_module(apr_pool_t *pconf, apr_pool_t *plog, apr_pool_t *ptemp, server_rec *
 	if (hooks == NULL) {
 		oxt::initialize();
 		SystemTime::initialize();
+		LoggingKit::initialize();
 	} else {
 		P_DEBUG("Restarting Phusion Passenger....");
 		delete hooks;
@@ -1610,13 +1652,13 @@ init_module(apr_pool_t *pconf, apr_pool_t *plog, apr_pool_t *ptemp, server_rec *
 			apr_pool_cleanup_null);
 		return OK;
 
-	} catch (const thread_interrupted &e) {
+	} catch (const boost::thread_interrupted &e) {
 		P_TRACE(2, "A system call was interrupted during mod_passenger "
 			"initialization. Apache might be restarting or shutting "
 			"down. Backtrace:\n" << e.backtrace());
 		return DECLINED;
 
-	} catch (const thread_resource_error &e) {
+	} catch (const boost::thread_resource_error &e) {
 		struct rlimit lim;
 		string pthread_threads_max;
 		int ret;
@@ -1733,4 +1775,3 @@ passenger_register_hooks(apr_pool_t *p) {
 /**
  * @}
  */
-

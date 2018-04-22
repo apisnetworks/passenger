@@ -2,9 +2,9 @@ server_name <%= app[:server_names].join(' ') %>;
 <% if app[:ssl] %>
     <% if app[:ssl_port] %>
         listen <%= nginx_listen_address(app) %>;
-        listen <%= nginx_listen_address_with_ssl_port(app) %> ssl;
+        listen <%= nginx_listen_address_with_ssl_port(app) %> ssl http2;
     <% else %>
-        listen <%= nginx_listen_address(app) %> ssl;
+        listen <%= nginx_listen_address(app) %> ssl http2;
     <% end %>
     ssl_certificate <%= app[:ssl_certificate] %>;
     ssl_certificate_key <%= app[:ssl_certificate_key] %>;
@@ -41,6 +41,7 @@ passenger_enabled on;
 <%= nginx_option(app, :spawn_method) %>
 <%= nginx_option(app, :app_type) %>
 <%= nginx_option(app, :startup_file) %>
+<%= nginx_option(app, :start_timeout) %>
 <%= nginx_option(app, :min_instances) %>
 <%= nginx_option(app, :max_request_queue_size) %>
 <%= nginx_option(app, :restart_dir) %>

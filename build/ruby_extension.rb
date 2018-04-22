@@ -1,5 +1,5 @@
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2010-2015 Phusion Holding B.V.
+#  Copyright (c) 2010-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -34,7 +34,7 @@ if !PlatformInfo.passenger_needs_ruby_dev_header?
   end
 else
   output_dir  = RUBY_EXTENSION_OUTPUT_DIR
-  output_name = "passenger_native_support.#{LIBEXT}"
+  output_name = "passenger_native_support.#{libext}"
   source_dir  = "src/ruby_native_extension"
   NATIVE_SUPPORT_TARGET = File.join(output_dir, output_name)
 

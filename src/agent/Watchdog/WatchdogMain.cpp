@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2010-2015 Phusion Holding B.V.
+ *  Copyright (c) 2010-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -43,7 +43,7 @@
 #endif
 
 #ifdef __linux__
-#include <sys/prctl.h>
+	#include <sys/prctl.h>
 #endif
 #include <sys/select.h>
 #include <sys/types.h>
@@ -62,17 +62,16 @@
 #include <cerrno>
 
 #include <jsoncpp/json.h>
-#include <Shared/Base.h>
+#include <Shared/Fundamentals/Initialization.h>
 #include <Shared/ApiServerUtils.h>
 #include <Core/OptionParser.h>
-#include <UstRouter/OptionParser.h>
 #include <Watchdog/ApiServer.h>
 #include <Constants.h>
 #include <InstanceDirectory.h>
 #include <FileDescriptor.h>
 #include <RandomGenerator.h>
 #include <BackgroundEventLoop.h>
-#include <Logging.h>
+#include <LoggingKit/LoggingKit.h>
 #include <Exceptions.h>
 #include <StaticString.h>
 #include <Hooks.h>
@@ -90,6 +89,7 @@ using namespace std;
 using namespace boost;
 using namespace oxt;
 using namespace Passenger;
+using namespace Passenger::Agent::Fundamentals;
 
 
 enum OomFileType {
@@ -125,6 +125,7 @@ namespace WatchdogAgent {
 		int apiServerFds[SERVER_KIT_MAX_SERVER_ENDPOINTS];
 		BackgroundEventLoop *bgloop;
 		ServerKit::Context *serverKitContext;
+		ServerKit::HttpServerSchema apiServerSchema;
 		ApiServer *apiServer;
 
 		WorkingObjects()
@@ -157,7 +158,6 @@ static void cleanup(const WorkingObjectsPtr &wo);
 #include "AgentWatcher.cpp"
 #include "InstanceDirToucher.cpp"
 #include "CoreWatcher.cpp"
-#include "UstRouterWatcher.cpp"
 
 
 /***** Functions *****/
@@ -387,8 +387,8 @@ deletePidFile(const WorkingObjectsPtr &wo) {
 
 static void
 cleanupAgentsInBackground(const WorkingObjectsPtr &wo, vector<AgentWatcherPtr> &watchers, char *argv[]) {
-	this_thread::disable_interruption di;
-	this_thread::disable_syscall_interruption dsi;
+	boost::this_thread::disable_interruption di;
+	boost::this_thread::disable_syscall_interruption dsi;
 	pid_t pid;
 	int e;
 
@@ -653,7 +653,7 @@ parseOptions(int argc, const char *argv[], VariantMap &options) {
 				 || p.isFlag(argv[i], '\0', "--begin-core-args"))
 				{
 					break;
-				} else if (!parseUstRouterOption(argc, argv, i, options)) {
+				} else {
 					fprintf(stderr, "ERROR: unrecognized UstRouter argument %s. Please "
 						"type '%s ust-router --help' for usage.\n", argv[i], argv[0]);
 					exit(1);
@@ -948,9 +948,15 @@ lowerPrivilege() {
 				"to that of user '" + userName + "' and group '" + groupName +
 				"': cannot set user ID to " + toString(pwUser->pw_uid), e);
 		}
-#ifdef __linux__
-		prctl(PR_SET_DUMPABLE, 1);
-#endif
+		#ifdef __linux__
+			// When we change the uid, /proc/self/pid contents don't change owner,
+			// causing us to lose access to our own /proc/self/pid files.
+			// This prctl call changes those files' ownership.
+			// References:
+			// https://stackoverflow.com/questions/8337846/files-ownergroup-doesnt-change-at-location-proc-pid-after-setuid
+			// http://man7.org/linux/man-pages/man5/proc.5.html (search for "dumpable")
+			prctl(PR_SET_DUMPABLE, 1);
+		#endif
 		setenv("USER", pwUser->pw_name, 1);
 		setenv("HOME", pwUser->pw_dir, 1);
 		setenv("UID", toString(gid).c_str(), 1);
@@ -1061,26 +1067,6 @@ initializeWorkingObjects(const WorkingObjectsPtr &wo, InstanceDirToucherPtr &ins
 	options.setStrSet("core_api_addresses", strset);
 
 	UPDATE_TRACE_POINT();
-	options.setDefault("ust_router_address",
-		"unix:" + wo->instanceDir->getPath() + "/agents.s/ust_router");
-	options.setDefault("ust_router_password",
-		wo->randomGenerator.generateAsciiString(24));
-
-	strset = options.getStrSet("ust_router_api_addresses", false);
-	strset.insert(strset.begin(),
-		"unix:" + wo->instanceDir->getPath() + "/agents.s/ust_router_api");
-	options.setStrSet("ust_router_api_addresses", strset);
-
-	UPDATE_TRACE_POINT();
-	strset = options.getStrSet("ust_router_authorizations", false);
-	strset.insert(strset.begin(),
-		"readonly:ro_admin:" + wo->instanceDir->getPath() +
-		"/read_only_admin_password.txt");
-	strset.insert(strset.begin(),
-		"full:admin:" + wo->instanceDir->getPath() +
-		"/full_admin_password.txt");
-	options.setStrSet("ust_router_authorizations", strset);
-
 	strset = options.getStrSet("core_authorizations", false);
 	strset.insert(strset.begin(),
 		"readonly:ro_admin:" + wo->instanceDir->getPath() +
@@ -1095,7 +1081,6 @@ static void
 initializeAgentWatchers(const WorkingObjectsPtr &wo, vector<AgentWatcherPtr> &watchers) {
 	TRACE_POINT();
 	watchers.push_back(boost::make_shared<CoreWatcher>(wo));
-	watchers.push_back(boost::make_shared<UstRouterWatcher>(wo));
 }
 
 static void
@@ -1155,10 +1140,11 @@ initializeApiServer(const WorkingObjectsPtr &wo) {
 		absolutizePath(options.get("data_buffer_dir"));
 
 	UPDATE_TRACE_POINT();
-	wo->apiServer = new ApiServer(wo->serverKitContext);
+	wo->apiServer = new ApiServer(wo->serverKitContext, wo->apiServerSchema);
 	wo->apiServer->apiAccountDatabase = &wo->apiAccountDatabase;
 	wo->apiServer->exitEvent = &wo->exitEvent;
 	wo->apiServer->fdPassingPassword = options.get("watchdog_fd_passing_password");
+	wo->apiServer->initialize();
 	for (unsigned int i = 0; i < apiAddresses.size(); i++) {
 		wo->apiServer->listen(wo->apiServerFds[i]);
 	}
@@ -1330,8 +1316,8 @@ watchdogMain(int argc, char *argv[]) {
 		runHookScriptAndThrowOnError("after_watchdog_initialization");
 
 		UPDATE_TRACE_POINT();
-		this_thread::disable_interruption di;
-		this_thread::disable_syscall_interruption dsi;
+		boost::this_thread::disable_interruption di;
+		boost::this_thread::disable_syscall_interruption dsi;
 		bool shouldExitGracefully = waitForStarterProcessOrWatchers(wo, watchers);
 		if (shouldExitGracefully) {
 			/* Fork a child process which cleans up all the agent processes in

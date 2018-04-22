@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2010-2016 Phusion Holding B.V.
+ *  Copyright (c) 2010-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -221,7 +221,7 @@ public:
 	 * @throws SecurityException
 	 * @throws boost::thread_interrupted
 	 */
-	string readLine(unsigned int max = 1024, unsigned long long *timeout = NULL) {
+	string readLine(unsigned int max = 1024 * 8, unsigned long long *timeout = NULL) {
 		string output;
 		readUntil(
 			boost::bind(newlineFound,

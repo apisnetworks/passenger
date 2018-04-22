@@ -1,5 +1,5 @@
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2013-2016 Phusion Holding B.V.
+#  Copyright (c) 2013-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -116,7 +116,6 @@ LOCATION_CONFIGURATION_OPTIONS = [
   },
   {
     :name     => 'passenger_enabled',
-    :context  => [:srv, :loc, :lif],
     :type     => :flag,
     :function => 'passenger_enabled',
     :field    => 'enabled',

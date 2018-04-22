@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2013-2015 Phusion Holding B.V.
+ *  Copyright (c) 2013-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -28,9 +28,9 @@
 
 #include <boost/regex.hpp>
 #include <oxt/thread.hpp>
-#include <sstream>
 #include <string>
 #include <cstring>
+#include <exception>
 #include <sys/types.h>
 
 #include <jsoncpp/json.h>
@@ -43,7 +43,8 @@
 #include <DataStructures/LString.h>
 #include <Exceptions.h>
 #include <StaticString.h>
-#include <Logging.h>
+#include <LoggingKit/LoggingKit.h>
+#include <LoggingKit/Context.h>
 #include <Constants.h>
 #include <Utils/StrIntUtils.h>
 #include <Utils/BufferedIO.h>
@@ -413,7 +414,7 @@ private:
 		count = mbuf_pool_compact(&ctx->mbuf_pool);
 		SKS_NOTICE_FROM_STATIC(controller, "Freed " << count << " mbufs");
 
-		controller->compact(LVL_NOTICE);
+		controller->compact(LoggingKit::NOTICE);
 	}
 
 	void processGc(Client *client, Request *req) {
@@ -460,7 +461,7 @@ private:
 	void processConfig_getControllerConfig(Client *client, Request *req,
 		Controller *controller)
 	{
-		Json::Value config = controller->getConfigAsJson();
+		Json::Value config = controller->inspectConfig();
 		getContext()->libev->runLater(boost::bind(
 			&ApiServer::processConfig_controllerConfigGathered, this,
 			client, req, controller, config));
@@ -475,16 +476,18 @@ private:
 		}
 
 		HeaderTable headers;
-		string logFile = getLogFile();
-		string fileDescriptorLogFile = getFileDescriptorLogFile();
+		ConfigKit::Store loggingConfig = LoggingKit::context->getConfig();
 
 		headers.insert(req->pool, "Content-Type", "application/json");
-		config["log_level"] = getLogLevel();
-		if (!logFile.empty()) {
-			config["log_file"] = logFile;
+		config["log_level"] = (int) LoggingKit::parseLevel(loggingConfig["level"].asString());
+		if (loggingConfig["target"].isMember("path")) {
+			config["log_file"] = loggingConfig["target"]["path"].asString();
 		}
-		if (!fileDescriptorLogFile.empty()) {
-			config["file_descriptor_log_file"] = fileDescriptorLogFile;
+		if (!loggingConfig["file_descriptor_log_target"].isNull()
+			&& loggingConfig["file_descriptor_log_target"].isMember("path"))
+		{
+			config["file_descriptor_log_file"] =
+				loggingConfig["file_descriptor_log_target"]["path"].asString();
 		}
 
 		writeSimpleResponse(client, 200, &headers,
@@ -497,52 +500,59 @@ private:
 		unrefRequest(req, __FILE__, __LINE__);
 	}
 
-	static void configureController(Controller *controller, Json::Value json) {
-		controller->configure(json);
+	static void configureController(Controller *controller, Json::Value updates) {
+		vector<ConfigKit::Error> errors;
+		ControllerConfigChangeRequest req;
+
+		if (controller->prepareConfigChange(updates, errors, req)) {
+			controller->commitConfigChange(req);
+		} else {
+			P_ERROR("Unable to apply configuration change to Core controller.\n"
+				"Configuration: " << updates.toStyledString() << "\n"
+				"Errors: " << toString(errors));
+		}
 	}
 
 	void processConfigBody(Client *client, Request *req) {
 		HeaderTable headers;
-		Json::Value &json = req->jsonBody;
+		LoggingKit::ConfigChangeRequest configReq;
+		const Json::Value &json = req->jsonBody;
+		vector<ConfigKit::Error> errors;
+		bool ok;
 
 		headers.insert(req->pool, "Content-Type", "application/json");
 		headers.insert(req->pool, "Cache-Control", "no-cache, no-store, must-revalidate");
 
-		if (json.isMember("log_level")) {
-			setLogLevel(json["log_level"].asInt());
-		}
-		if (json.isMember("log_file")) {
-			string logFile = json["log_file"].asString();
-			try {
-				logFile = absolutizePath(logFile);
-			} catch (const SystemException &e) {
-				unsigned int bufsize = 1024;
-				char *message = (char *) psg_pnalloc(req->pool, bufsize);
-				snprintf(message, bufsize, "{ \"status\": \"error\", "
-					"\"message\": \"Cannot absolutize log file filename: %s\" }",
-					e.what());
-				writeSimpleResponse(client, 500, &headers, message);
-				if (!req->ended()) {
-					endRequest(&client, &req);
-				}
-				return;
+		try {
+			ok = LoggingKit::context->prepareConfigChange(json,
+				errors, configReq);
+		} catch (const std::exception &e) {
+			unsigned int bufsize = 2048;
+			char *message = (char *) psg_pnalloc(req->pool, bufsize);
+			snprintf(message, bufsize, "{ \"status\": \"error\", "
+				"\"message\": \"Error reconfiguring logging system: %s\" }",
+				e.what());
+			writeSimpleResponse(client, 500, &headers, message);
+			if (!req->ended()) {
+				endRequest(&client, &req);
 			}
+			return;
+		}
+		if (!ok) {
+			unsigned int bufsize = 2048;
+			char *message = (char *) psg_pnalloc(req->pool, bufsize);
+			snprintf(message, bufsize, "{ \"status\": \"error\", "
+				"\"message\": \"Error reconfiguring logging system: %s\" }",
+				ConfigKit::toString(errors).c_str());
+			writeSimpleResponse(client, 500, &headers, message);
+			if (!req->ended()) {
+				endRequest(&client, &req);
+			}
+			return;
+		}
 
-			int e;
-			if (!setLogFile(logFile, &e)) {
-				unsigned int bufsize = 1024;
-				char *message = (char *) psg_pnalloc(req->pool, bufsize);
-				snprintf(message, bufsize, "{ \"status\": \"error\", "
-					"\"message\": \"Cannot open log file: %s (errno=%d)\" }",
-					strerror(e), e);
-				writeSimpleResponse(client, 500, &headers, message);
-				if (!req->ended()) {
-					endRequest(&client, &req);
-				}
-				return;
-			}
-			P_NOTICE("Log file opened.");
-		}
+		LoggingKit::context->commitConfigChange(configReq);
+
 		for (unsigned int i = 0; i < controllers.size(); i++) {
 			controllers[i]->getContext()->libev->runLater(boost::bind(
 				configureController, controllers[i], json));
@@ -646,8 +656,9 @@ public:
 	EventFd *exitEvent;
 	vector<Authorization> authorizations;
 
-	ApiServer(ServerKit::Context *context)
-		: ParentClass(context),
+	ApiServer(ServerKit::Context *context, const ServerKit::HttpServerSchema &schema,
+		const Json::Value &initialConfig = Json::Value())
+		: ParentClass(context, schema, initialConfig),
 		  serverConnectionPath("^/server/(.+)\\.json$"),
 		  apiAccountDatabase(NULL),
 		  exitEvent(NULL)

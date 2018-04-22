@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2011-2015 Phusion Holding B.V.
+ *  Copyright (c) 2011-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -34,7 +34,7 @@
 #include <climits>
 #include <cassert>
 #include <SmallVector.h>
-#include <Logging.h>
+#include <LoggingKit/LoggingKit.h>
 #include <StaticString.h>
 #include <MemoryKit/palloc.h>
 #include <Utils/IOUtils.h>
@@ -286,6 +286,6 @@ typedef boost::shared_ptr<SocketList> SocketListPtr;
 
 
 } // namespace ApplicationPool2
-} // namespace Pasenger
+} // namespace Passenger
 
 #endif /* _PASSENGER_APPLICATION_POOL2_SOCKET_H_ */

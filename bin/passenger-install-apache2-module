@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 # encoding: binary
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2010-2015 Phusion Holding B.V.
+#  Copyright (c) 2010-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -78,7 +78,6 @@ class Installer < PhusionPassenger::AbstractInstaller
       'libcurl-dev',
       'zlib-dev',
       'apache2',
-      'apache2-dev',
       'rake',
       'ruby-openssl',
       'rubygems'
@@ -89,18 +88,29 @@ class Installer < PhusionPassenger::AbstractInstaller
       end
       ids << 'rack'
     end
+    # On macOS our Crypto.cpp uses TransportSecurity instead of OpenSSL.
+    if PlatformInfo.os_name_simple != 'macosx'
+      ids << 'openssl-dev'
+    end
+    if PlatformInfo.apxs2_needed_for_building_apache_modules?
+      ids << 'apache2-dev'
+    end
     # Some broken servers don't have apr-config or apu-config installed.
     # Nevertheless, it is possible to compile Apache modules if Apache
     # was configured with --included-apr. So here we check whether
     # apr-config and apu-config are available. If they're not available,
     # then we only register them as required dependency if no Apache
     # module can be compiled without their presence.
-    if (PlatformInfo.apr_config && PlatformInfo.apu_config) ||
-       PlatformInfo.apr_config_needed_for_building_apache_modules?
+    if needs_apr_and_apu?
       ids << 'apr-dev'
       ids << 'apu-dev'
     end
     return [specs, ids]
+  end
+
+  def needs_apr_and_apu?
+    (PlatformInfo.apr_config && PlatformInfo.apu_config) ||
+     PlatformInfo.apr_config_needed_for_building_apache_modules?
   end
 
   def install_doc_url
@@ -251,8 +261,10 @@ private
           :other_installs => other_installs
         puts
         if interactive?
+          # @apache.apxs2 can be nil, which on macOS >= 10.13 High Sierra
+          # means that we're using the OS-provided Apache installation.
           result = prompt_confirmation "Are you sure you want to install " +
-            "against Apache #{@apache2.version} (#{@apache2.apxs2})?"
+            "against Apache #{@apache2.version} (#{@apache2.apxs2 || 'OS-provided install'})?"
           if !result
             puts
             line

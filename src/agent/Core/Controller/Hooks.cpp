@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2011-2016 Phusion Holding B.V.
+ *  Copyright (c) 2011-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -135,6 +135,7 @@ Controller::reinitializeRequest(Client *client, Request *req) {
 	req->strip100ContinueHeader = false;
 	req->hasPragmaHeader = false;
 	req->host = NULL;
+	req->config = requestConfig;
 	req->bodyBytesBuffered = 0;
 	req->cacheKey = HashedStaticString();
 	req->cacheControl = NULL;
@@ -154,6 +155,7 @@ Controller::reinitializeRequest(Client *client, Request *req) {
 void
 Controller::deinitializeRequest(Client *client, Request *req) {
 	req->session.reset();
+	req->config.reset();
 
 	req->endStopwatchLog(&req->stopwatchLogs.getFromPool, false);
 	req->endStopwatchLog(&req->stopwatchLogs.bufferingRequestBody, false);
@@ -274,7 +276,8 @@ Controller::onNextRequestEarlyReadError(Client *client, Request *req, int errcod
 
 bool
 Controller::shouldDisconnectClientOnShutdown(Client *client) {
-	return ParentClass::shouldDisconnectClientOnShutdown(client) || !gracefulExit;
+	return ParentClass::shouldDisconnectClientOnShutdown(client)
+		|| !mainConfig.gracefulExit;
 }
 
 bool
@@ -296,7 +299,7 @@ Controller::getClientName(const Client *client, char *buf, size_t size) const {
 	const char *end = buf + size - 1;
 	// WARNING: If you change the format, be sure to change
 	// ApiServer::extractThreadNumberFromClientName() too.
-	pos += uintToString(threadNumber, pos, end - pos);
+	pos += uintToString(mainConfig.threadNumber, pos, end - pos);
 	pos = appendData(pos, end, "-", 1);
 	pos += uintToString(client->number, pos, end - pos);
 	*pos = '\0';
@@ -305,7 +308,7 @@ Controller::getClientName(const Client *client, char *buf, size_t size) const {
 
 StaticString
 Controller::getServerName() const {
-	return serverLogName;
+	return mainConfig.serverLogName;
 }
 
 

@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2013 Phusion Holding B.V.
+ *  Copyright (c) 2013-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -47,9 +47,16 @@
  * don't do anything.
  */
 
+// for std::swap()
+#if __cplusplus >= 201103L
+	#include <utility>
+#else
+	#include <algorithm>
+#endif
 #include <string>
 #include <cstring>
 #include <curl/curl.h>
+#include <boost/config.hpp>
 #include <boost/foreach.hpp>
 #include <Exceptions.h>
 #include <Utils.h>
@@ -78,6 +85,15 @@ struct CurlProxyInfo {
 		  httpTunnel(false),
 		  valid(valid)
 		{ }
+
+	void swap(CurlProxyInfo &other) BOOST_NOEXCEPT_OR_NOTHROW {
+		hostAndPort.swap(other.hostAndPort);
+		credentials.swap(other.credentials);
+		std::swap(type, other.type);
+		std::swap(none, other.none);
+		std::swap(httpTunnel, other.httpTunnel);
+		std::swap(valid, other.valid);
+	}
 };
 
 inline const CurlProxyInfo
@@ -196,6 +212,51 @@ setCurlProxy(CURL *curl, const CurlProxyInfo &proxyInfo) {
 		}
 		return CURLE_OK;
 	}
+}
+
+inline bool
+isCurlStaticallyLinked() {
+	#ifdef CURL_IS_STATICALLY_LINKED
+		return true;
+	#else
+		return false;
+	#endif
+}
+
+inline CURLcode
+setCurlDefaultCaInfo(CURL *curl) {
+	#ifdef CURL_IS_STATICALLY_LINKED
+		static const char *candidates[] = {
+			// Debian, Ubuntu
+			"/etc/ssl/certs/ca-certificates.crt",
+			// Red Hat, CentOS, Fedora
+			"/etc/pki/tls/certs/ca-bundle.crt",
+			// Older Red Hat
+			"/usr/share/ssl/certs/ca-bundle.crt",
+			// FreeBSD
+			"/usr/local/share/certs/ca-root-nss.crt",
+			// OpenBSD, FreeBSD (symlink), macOS
+			"/etc/ssl/cert.pem",
+			// SUSE
+			"/etc/ssl/certs"
+		};
+		unsigned int i;
+
+		for (i = 0; i < sizeof(candidates) / sizeof(const char *); i++) {
+			switch (getFileType(candidates[i])) {
+			case FT_REGULAR:
+				return curl_easy_setopt(curl, CURLOPT_CAINFO, candidates[i]);
+			case FT_DIRECTORY:
+				return curl_easy_setopt(curl, CURLOPT_CAPATH, candidates[i]);
+			default:
+				break;
+			}
+		}
+
+		return CURLE_SSL_CACERT_BADFILE;
+	#else
+		return CURLE_OK;
+	#endif
 }
 
 } // namespace Passenger

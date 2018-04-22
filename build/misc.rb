@@ -1,6 +1,6 @@
 # encoding: utf-8
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2010-2016 Phusion Holding B.V.
+#  Copyright (c) 2010-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -77,7 +77,7 @@ end
 desc "Convert the Changelog items for the latest release to HTML"
 task :changelog_as_html do
   require 'cgi'
-  contents, items = extract_latest_news_contents_and_items
+  _, items = extract_latest_news_contents_and_items
 
   puts "<ul>"
   items.each do |item|
@@ -109,7 +109,7 @@ end
 
 desc "Convert the Changelog items for the latest release to Markdown"
 task :changelog_as_markdown do
-  contents, items = extract_latest_news_contents_and_items
+  contents, _ = extract_latest_news_contents_and_items
 
   # Auto-link to issue tracker.
   contents.gsub!(/(bug #|issue #|GH-)(\d+)/i) do
@@ -137,6 +137,7 @@ task :contributors do
   entries.push "Sean Wilkinson"
   entries.push "Yichun Zhang"
   entries.delete "OnixGH"
+  entries.delete "onix"
   entries.push "Ruslan Ermilov (NGINX Inc)"
   File.open("CONTRIBUTORS", "w") do |f|
     f.puts(entries.sort{ |a, b| a.downcase <=> b.downcase }.join("\n"))
@@ -175,20 +176,23 @@ task :compile_app => dependencies do
       :include_paths => CXX_SUPPORTLIB_INCLUDE_PATHS,
       :flags => [
         "-DSTANDALONE",
-        LIBEV_CFLAGS,
-        LIBUV_CFLAGS
+        libev_cflags,
+        libuv_cflags
       ]
     )
     create_cxx_executable(exe,
       object,
       :flags => [
         "-DSTANDALONE",
-        LIBEV_CFLAGS,
-        LIBUV_CFLAGS,
+        libev_cflags,
+        libuv_cflags,
         COMMON_LIBRARY.link_objects_as_string,
         LIBBOOST_OXT_LINKARG,
         libev_libs,
         libuv_libs,
+        PlatformInfo.curl_libs,
+        PlatformInfo.zlib_libs,
+        PlatformInfo.crypto_libs,
         PlatformInfo.portability_cxx_ldflags
       ]
     )

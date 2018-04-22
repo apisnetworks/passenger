@@ -1,5 +1,5 @@
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2014-2015 Phusion Holding B.V.
+#  Copyright (c) 2014-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -71,7 +71,6 @@ module PhusionPassenger
       def perform_reopen_logs
         perform_reopen_logs_on("watchdog", "watchdog_api")
         perform_reinherit_logs_on("core", "core_api")
-        perform_reinherit_logs_on("UstRouter", "ust_router_api")
         if using_standalone_nginx_engine?
           perform_reopen_logs_on_nginx
         end

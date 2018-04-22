@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2014-2016 Phusion Holding B.V.
+ *  Copyright (c) 2014-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -241,7 +241,7 @@ durationToJson(unsigned long long duration) {
 	Json::Value doc;
 	char buf[64];
 
-	doc["microseconds"] = duration;
+	doc["microseconds"] = (Json::UInt64) duration;
 	if (duration >= 10 * 1000000) {
 		snprintf(buf, sizeof(buf), "%.1fs", duration / 1000000.0);
 	} else {

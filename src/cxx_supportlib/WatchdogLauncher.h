@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2010-2016 Phusion Holding B.V.
+ *  Copyright (c) 2010-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -104,7 +104,9 @@ void        psg_watchdog_launcher_free(PsgWatchdogLauncher *launcher);
 #include <MessageClient.h>
 #include <Exceptions.h>
 #include <ResourceLocator.h>
-#include <Logging.h>
+#include <LoggingKit/LoggingKit.h>
+#include <LoggingKit/Context.h>
+#include <ProcessManagement/Utils.h>
 #include <Utils.h>
 #include <Utils/IOUtils.h>
 #include <Utils/MessageIO.h>
@@ -148,15 +150,6 @@ class WatchdogLauncher {
 	P_RO_PROPERTY_CONST_REF(private, string, CorePassword);
 
 	/**
-	 * The address on which the Passenger UstRouter listens, and the
-	 * corresponding password.
-	 *
-	 * Only valid when `getPid() != 0`.
-	 */
-	P_RO_PROPERTY_CONST_REF(private, string, UstRouterAddress);
-	P_RO_PROPERTY_CONST_REF(private, string, UstRouterPassword);
-
-	/**
 	 * The path to the instance directory that the Watchdog has created.
 	 *
 	 * Only valid when `getPid() != 0`.
@@ -197,8 +190,8 @@ private:
 	 * then it will set `pid` to -1.
 	 */
 	void inspectWatchdogCrashReason(pid_t &pid) {
-		this_thread::disable_interruption di;
-		this_thread::disable_syscall_interruption dsi;
+		boost::this_thread::disable_interruption di;
+		boost::this_thread::disable_syscall_interruption dsi;
 		int ret, status;
 
 		/* Upon noticing that something went wrong, the watchdog
@@ -268,7 +261,7 @@ private:
 
 	static void killProcessGroupAndWait(pid_t *pid, unsigned long long timeout = 0) {
 		if (*pid != -1 && (timeout == 0 || timedWaitPid(*pid, NULL, timeout) <= 0)) {
-			this_thread::disable_syscall_interruption dsi;
+			boost::this_thread::disable_syscall_interruption dsi;
 			syscalls::killpg(*pid, SIGKILL);
 			syscalls::waitpid(*pid, NULL, 0);
 			*pid = -1;
@@ -306,7 +299,7 @@ public:
 
 	~WatchdogLauncher() {
 		if (mPid != 0) {
-			this_thread::disable_syscall_interruption dsi;
+			boost::this_thread::disable_syscall_interruption dsi;
 
 			/* Send a message down the feedback fd to tell the watchdog
 			 * that we're shutting down cleanly. Closing the fd without
@@ -344,8 +337,8 @@ public:
 		const boost::function<void ()> &afterFork = boost::function<void ()>())
 	{
 		TRACE_POINT();
-		this_thread::disable_interruption di;
-		this_thread::disable_syscall_interruption dsi;
+		boost::this_thread::disable_interruption di;
+		boost::this_thread::disable_syscall_interruption dsi;
 		ResourceLocator locator(passengerRoot);
 
 		string agentFilename;
@@ -364,7 +357,7 @@ public:
 			.set    ("web_server_passenger_version", PASSENGER_VERSION)
 			.set    ("integration_mode", getIntegrationModeString())
 			.set    ("passenger_root",  passengerRoot)
-			.setInt ("log_level",       getLogLevel());
+			.setInt ("log_level",       (int) LoggingKit::getLevel());
 		extraParams.addTo(params);
 
 		if (!params.getBool("user_switching", false, true)
@@ -395,15 +388,16 @@ public:
 
 			// Make sure the feedback fd is 3 and close all file descriptors
 			// except stdin, stdout, stderr and 3.
-			syscalls::close(fds[0]);
+			close(fds[0]);
 			installFeedbackFd(fds[1]);
-			closeAllFileDescriptors(FEEDBACK_FD);
 
 			setenv("PASSENGER_USE_FEEDBACK_FD", "true", 1);
 
 			if (afterFork) {
 				afterFork();
 			}
+
+			closeAllFileDescriptors(FEEDBACK_FD, true);
 
 			execl(agentFilename.c_str(), AGENT_EXE, "watchdog",
 				// Some extra space to allow the child process to change its process title.
@@ -456,8 +450,8 @@ public:
 
 			/****** Read agents information report ******/
 
-			this_thread::restore_interruption ri(di);
-			this_thread::restore_syscall_interruption rsi(dsi);
+			boost::this_thread::restore_interruption ri(di);
+			boost::this_thread::restore_syscall_interruption rsi(dsi);
 			UPDATE_TRACE_POINT();
 
 			try {
@@ -497,8 +491,6 @@ public:
 				mCoreAddress       = info.get("core_address");
 				mCorePassword      = info.get("core_password");
 				mInstanceDir       = info.get("instance_dir");
-				mUstRouterAddress  = info.get("ust_router_address");
-				mUstRouterPassword = info.get("ust_router_password");
 				guard.clear();
 			} else if (args[0] == "Watchdog startup error") {
 				killProcessGroupAndWait(&pid, 5000);

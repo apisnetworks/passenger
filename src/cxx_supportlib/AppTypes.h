@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2013-2014 Phusion Holding B.V.
+ *  Copyright (c) 2013-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -77,7 +77,7 @@ PassengerAppType pp_get_app_type2(const char *name, unsigned int len);
 #include <cstdlib>
 #include <limits.h>
 #include <string>
-#include <Logging.h>
+#include <LoggingKit/LoggingKit.h>
 #include <StaticString.h>
 #include <Utils.h>
 #include <Utils/StrIntUtils.h>

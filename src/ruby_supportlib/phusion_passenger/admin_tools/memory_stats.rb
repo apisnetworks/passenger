@@ -1,6 +1,6 @@
 # encoding: binary
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2010-2013 Phusion Holding B.V.
+#  Copyright (c) 2010-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -90,7 +90,7 @@ module PhusionPassenger
       # Phusion Passenger is not running.
       def passenger_processes
         @passenger_processes ||= list_processes(:match =>
-          /((^| )Passenger|(^| )Rails:|(^| )Rack:|wsgi-loader.py|(.*)PassengerAgent)/)
+          /((^| )Passenger|(^| )Rails:|(^| )Rack:|wsgi-loader.py|(.*)PassengerAgent|rack-loader.rb)/)
       end
 
       # Returns the sum of the memory usages of all given processes.

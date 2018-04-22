@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2011-2015 Phusion Holding B.V.
+ *  Copyright (c) 2011-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -45,33 +45,17 @@ using namespace boost;
  ****************************/
 
 
-TurboCaching<Request>::State
-Controller::getTurboCachingInitialState(const VariantMap *agentsOptions) {
-	bool enabled = agentsOptions->getBool("turbocaching", false, true);
-	if (enabled) {
-		return TurboCaching<Request>::ENABLED;
-	} else {
-		return TurboCaching<Request>::DISABLED;
-	}
-}
-
-void
-Controller::generateServerLogName(unsigned int number) {
-	string name = "ServerThr." + toString(number);
-	serverLogName = psg_pstrdup(stringPool, name);
-}
-
 void
 Controller::disconnectWithClientSocketWriteError(Client **client, int e) {
 	stringstream message;
-	PassengerLogLevel logLevel;
+	LoggingKit::Level logLevel;
 	message << "client socket write error: ";
 	message << ServerKit::getErrorDesc(e);
 	message << " (errno=" << e << ")";
 	if (e == EPIPE || e == ECONNRESET) {
-		logLevel = LVL_INFO;
+		logLevel = LoggingKit::INFO;
 	} else {
-		logLevel = LVL_WARN;
+		logLevel = LoggingKit::WARN;
 	}
 	disconnectWithError(client, message.str(), logLevel);
 }

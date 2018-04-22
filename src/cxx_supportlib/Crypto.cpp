@@ -1,6 +1,6 @@
 /*
  *  Phusion Passenger - https://www.phusionpassenger.com/
- *  Copyright (c) 2010-2016 Phusion Holding B.V.
+ *  Copyright (c) 2010-2017 Phusion Holding B.V.
  *
  *  "Passenger", "Phusion Passenger" and "Union Station" are registered
  *  trademarks of Phusion Holding B.V.
@@ -26,7 +26,7 @@
 
 #include <Crypto.h>
 #include <modp_b64.h>
-#include <Logging.h>
+#include <LoggingKit/LoggingKit.h>
 #include <string>
 #include <Utils/SystemTime.h>
 #include <Utils/StrIntUtils.h>
@@ -47,7 +47,8 @@ using namespace oxt;
 
 #if BOOST_OS_MACOS
 
-Crypto::Crypto() {
+Crypto::Crypto()
+	:id(NULL) {
 }
 
 Crypto::~Crypto() {
@@ -56,29 +57,15 @@ Crypto::~Crypto() {
 CFDictionaryRef Crypto::createQueryDict(const char *label) {
 	if (kSecClassIdentity != NULL) {
 		const size_t size = 5L;
-		CFTypeRef keys[size];
-		CFTypeRef values[size];
-		CFDictionaryRef queryDict;
-		CFStringRef cfLabel = CFStringCreateWithCString(NULL, label,
-														kCFStringEncodingUTF8);
+		CFStringRef cfLabel = CFStringCreateWithCString(NULL, label, kCFStringEncodingUTF8);
+		SecPolicyRef policy = SecPolicyCreateSSL(false, NULL);
+		CFTypeRef keys[] = {kSecClass, kSecReturnRef, kSecMatchLimit, kSecMatchPolicy, kSecMatchSubjectWholeString};
+		CFTypeRef values[] = {kSecClassIdentity, kCFBooleanTrue, kSecMatchLimitOne, policy, cfLabel};
 
-		/* Set up our search criteria and expected results: */
-		values[0] = kSecClassIdentity; /* we want a certificate and a key */
-		keys[0] = kSecClass;
-		values[1] = kCFBooleanTrue;    /* we need a reference */
-		keys[1] = kSecReturnRef;
-		values[2] = kSecMatchLimitOne; /* one is enough, thanks */
-		keys[2] = kSecMatchLimit;
-		/* identity searches need a SecPolicyRef in order to work */
-		values[3] = SecPolicyCreateSSL(false, NULL);
-		keys[3] = kSecMatchPolicy;
-		values[4] = cfLabel;
-		keys[4] = kSecMatchSubjectWholeString;
-		queryDict = CFDictionaryCreate(NULL, (const void **) keys,
-									   (const void **) values, size,
+		CFDictionaryRef queryDict = CFDictionaryCreate(NULL, keys, values, size,
 									   &kCFCopyStringDictionaryKeyCallBacks,
 									   &kCFTypeDictionaryValueCallBacks);
-		CFRelease(values[3]);
+		CFRelease(policy);
 		CFRelease(cfLabel);
 
 		return queryDict;
@@ -112,9 +99,11 @@ SecAccessRef Crypto::createAccess(const char *cLabel) {
 
 OSStatus Crypto::copyIdentityFromPKCS12File(const char *cPath,
 											const char *cPassword,
-											const char *cLabel,
-											SecIdentityRef *oIdentity) {
+											const char *cLabel) {
 	OSStatus status = errSecItemNotFound;
+	if (strlen(cPath) == 0) {
+		return errSecMissingValue;
+	}
 	CFURLRef url = CFURLCreateFromFileSystemRepresentation(NULL,
 														   (const UInt8 *) cPath, strlen(cPath), false);
 	CFStringRef password = cPassword ? CFStringCreateWithCString(NULL,
@@ -130,6 +119,9 @@ OSStatus Crypto::copyIdentityFromPKCS12File(const char *cPath,
 	}
 
 	SecAccessRef access = createAccess(cLabel);
+	if (access == NULL) {
+		return status;
+	}
 	CFTypeRef cKeys[] = {kSecImportExportPassphrase, kSecImportExportAccess};
 	CFTypeRef cValues[] = {password, access};
 	CFDictionaryRef options = CFDictionaryCreate(NULL, cKeys, cValues, 2L, NULL, NULL);
@@ -137,18 +129,20 @@ OSStatus Crypto::copyIdentityFromPKCS12File(const char *cPath,
 
 	/* Here we go: */
 	status = SecPKCS12Import(pkcsData, options, &items);
-	if (status == noErr && items && CFArrayGetCount(items)) {
-		CFDictionaryRef identityAndTrust = (CFDictionaryRef) CFArrayGetValueAtIndex(items, 0L);
-		SecIdentityRef tempIdentity = (SecIdentityRef) CFDictionaryGetValue(identityAndTrust, kSecImportItemIdentity);
-
-		/* Retain the identity; we don't care about any other data... */
-		CFRetain(tempIdentity);
-		*oIdentity = tempIdentity;
-		//CFRelease(identityAndTrust);// is released with items array
-	} else {
-		CFStringRef str = SecCopyErrorMessageString(status, NULL);
-		logError(string("Loading Passenger Cert failed: ") + CFStringGetCStringPtr(str, kCFStringEncodingUTF8) );
-		CFRelease(str);
+	if (!(status == noErr && items && CFArrayGetCount(items))) {
+		string suffix = string("Please check for a certificate labeled: ") + cLabel + " in your keychain, and remove the associated private key. For more help please read: https://www.phusionpassenger.com/library/admin/standalone/mac_keychain_popups.html";
+		string prefix = "Loading Passenger Cert failed";
+		if (status == noErr) {
+			status = errSecAuthFailed;
+			logError( prefix + ". " + suffix );
+		}else{
+			CFStringRef str = SecCopyErrorMessageString(status, NULL);
+			logError( prefix + ": " + CFStringGetCStringPtr(str, kCFStringEncodingUTF8) + "\n" + suffix );
+			CFRelease(str);
+		}
+	}else{
+	  id = (CFDataRef)CFDictionaryGetValue((CFDictionaryRef)CFArrayGetValueAtIndex(items, 0),kSecImportItemKeyID);
+	  CFRetain(id);
 	}
 
 	if (items) {
@@ -175,18 +169,35 @@ void Crypto::killKey(const char *cLabel) {
 
 		CFArrayRef itemList = CFArrayCreate(NULL, (const void **) &id, 1, NULL);
 		CFTypeRef keys[]   = { kSecClass,  kSecMatchItemList,  kSecMatchLimit };
-		CFTypeRef values[] = { kSecClassIdentity, itemList, kSecMatchLimitAll };
+		CFTypeRef values[] = { kSecClassCertificate, itemList, kSecMatchLimitOne };
 
 		CFDictionaryRef dict = CFDictionaryCreate(NULL, keys, values, 3L, NULL, NULL);
 		OSStatus oserr = SecItemDelete(dict);
 		if (oserr) {
 			CFStringRef str = SecCopyErrorMessageString(oserr, NULL);
 			logError(string("Removing Passenger Cert from keychain failed: ") + CFStringGetCStringPtr(str, kCFStringEncodingUTF8) +
-					" Please remove the private key from the certificate labeled " + cLabel + " in your keychain.");
+					". Please remove the certificate labeled " + cLabel + " in your keychain.");
 			CFRelease(str);
 		}
 		CFRelease(dict);
 		CFRelease(itemList);
+
+		if(id){
+			CFTypeRef keys2[]   = { kSecClass,  kSecAttrSubjectKeyID,  kSecMatchLimit };
+			CFTypeRef values2[] = { kSecClassKey, id, kSecMatchLimitOne };
+			dict = CFDictionaryCreate(NULL, keys2, values2, 3L, NULL, NULL);
+			oserr = SecItemDelete(dict);
+			if (oserr) {
+				CFStringRef str = SecCopyErrorMessageString(oserr, NULL);
+				logError(string("Removing Passenger private key from keychain failed: ") + CFStringGetCStringPtr(str, kCFStringEncodingUTF8) +
+						 ". Please remove the private key from the certificate labeled " + cLabel + " in your keychain.");
+				CFRelease(str);
+			}
+			CFRelease(dict);
+			CFRelease(id);
+			id = NULL;
+		}
+
 	} else {
 		CFStringRef str = SecCopyErrorMessageString(status, NULL);
 		logError(string("Finding Passenger Cert failed: ") + CFStringGetCStringPtr(str, kCFStringEncodingUTF8) );
@@ -194,7 +205,7 @@ void Crypto::killKey(const char *cLabel) {
 	}
 }
 
-void Crypto::preAuthKey(const char *path, const char *passwd, const char *cLabel) {
+bool Crypto::preAuthKey(const char *path, const char *passwd, const char *cLabel) {
 	SecIdentityRef id = NULL;
 	if (lookupKeychainItem(cLabel, &id) == errSecItemNotFound) {
 		OSStatus oserr = SecKeychainSetUserInteractionAllowed(false);
@@ -203,9 +214,12 @@ void Crypto::preAuthKey(const char *path, const char *passwd, const char *cLabel
 			logError(string("Disabling GUI Keychain interaction failed: ") + CFStringGetCStringPtr(str, kCFStringEncodingUTF8));
 			CFRelease(str);
 		}
-		copyIdentityFromPKCS12File(path, passwd, cLabel, &id);
-		if (id == NULL) {
-			logError("copyIdentityFromPKCS12File failed.");
+		oserr = copyIdentityFromPKCS12File(path, passwd, cLabel);
+		bool success = (noErr == oserr);
+		if (!success) {
+			CFStringRef str = SecCopyErrorMessageString(oserr, NULL);
+			logError(string("Pre authorizing the Passenger client certificate failed: ") + CFStringGetCStringPtr(str, kCFStringEncodingUTF8));
+			CFRelease(str);
 		}
 		oserr = SecKeychainSetUserInteractionAllowed(true);
 		if (oserr) {
@@ -215,11 +229,13 @@ void Crypto::preAuthKey(const char *path, const char *passwd, const char *cLabel
 					" Please reboot as soon as possible, thanks.");
 			CFRelease(str);
 		}
+		return success;
 	} else {
-		logError(string("Passenger certificate was found in the keychain unexpectedly, you may see keychain popups until you remove the private key from the certificate labeled ") + cLabel + " in your keychain.");
-	}
-	if (id) {
-		CFRelease(id);
+		logError(string("Passenger client certificate was found in the keychain unexpectedly, skipping security update check. Please remove the private key from the certificate labeled ") + cLabel + " in your keychain.");
+		if (id) {
+			CFRelease(id);
+		}
+		return false;
 	}
 }
 
@@ -239,7 +255,7 @@ bool Crypto::generateRandomChars(unsigned char *rndChars, int rndLen) {
 											  CFSTR("Have you tried turning it off and on again?") };
 
 		CFErrorRef error = CFErrorCreateWithUserInfoKeysAndValues(NULL, kCFErrorDomainOSStatus, errNum, userInfoKeys, userInfoValues, numKeys);
-		logFreeErrorExtended("SecVerifyTransformCreate", error);
+		logFreeErrorExtended("generateRandomChars failed", error);
 		return false;
 	}
 	for (int i = 0; i < rndLen; i++) {
@@ -257,7 +273,7 @@ bool Crypto::generateAndAppendNonce(string &nonce) {
 	unsigned char rndChars[rndLen];
 
 	if (generateRandomChars(rndChars, rndLen)) {
-		char rndChars64[rndLen * 2];
+		char rndChars64[modp_b64_encode_len(rndLen)];
 		modp_b64_encode(rndChars64, (const char *) rndChars, rndLen);
 
 		nonce.append(rndChars64);
@@ -278,7 +294,7 @@ CFDataRef Crypto::genIV(size_t ivSize) {
 
 bool Crypto::getKeyBytes(SecKeyRef cryptokey, void **target, size_t &len) {
 	const CSSM_KEY *cssmKey;
-	CSSM_WRAP_KEY wrappedKey = {{0}};
+	CSSM_WRAP_KEY wrappedKey;
 
 	CSSM_CSP_HANDLE cspHandle = 0;
 	CSSM_CC_HANDLE ccHandle = 0;
@@ -306,12 +322,13 @@ bool Crypto::getKeyBytes(SecKeyRef cryptokey, void **target, size_t &len) {
 											&ccHandle);
 	if (error != CSSM_OK) { cssmPerror("CSSM_CSP_CreateSymmetricContext",error); }
 
-	CSSM_WrapKey(ccHandle,
+	memset(&wrappedKey, 0, sizeof(wrappedKey));
+	error = CSSM_WrapKey(ccHandle,
 				 creds,
 				 cssmKey,
 				 NULL,
 				 &wrappedKey);
-	cssmPerror("CSSM_WrapKey", error);
+	if (error != CSSM_OK) { cssmPerror("CSSM_WrapKey", error); }
 
 	CSSM_DeleteContext(ccHandle);
 
@@ -667,7 +684,7 @@ void Crypto::freePubKey(PUBKEY_TYPE pubKey) {
 	}
 }
 
-void Crypto::logFreeErrorExtended(string prefix, CFErrorRef &error) {
+void Crypto::logFreeErrorExtended(const StaticString &prefix, CFErrorRef &error) {
 	if (error) {
 		CFStringRef description = CFErrorCopyDescription((CFErrorRef) error);
 		CFStringRef failureReason = CFErrorCopyFailureReason((CFErrorRef) error);
@@ -708,7 +725,7 @@ bool Crypto::generateAndAppendNonce(string &nonce) {
 		return false;
 	}
 
-	char rndChars64[rndLen * 2];
+	char rndChars64[modp_b64_encode_len(rndLen)];
 	modp_b64_encode(rndChars64, (const char *) rndChars, rndLen);
 
 	nonce.append(rndChars64);
@@ -820,7 +837,7 @@ bool Crypto::encryptRSA(unsigned char *dataChars, size_t dataLen,
 		string encryptPubKeyPath, unsigned char **encryptedCharsPtr, size_t &encryptedLen) {
 	RSA *rsaPubKey = NULL;
 	EVP_PKEY *rsaPubKeyEVP = NULL;
-	EVP_PKEY_CTX *ctx;
+	EVP_PKEY_CTX *ctx = NULL;
 	bool result = false;
 
 	do {
@@ -957,7 +974,7 @@ void Crypto::freePubKey(PUBKEY_TYPE pubKey) {
 	}
 }
 
-void Crypto::logErrorExtended(string prefix) {
+void Crypto::logErrorExtended(const StaticString &prefix) {
 	char err[500];
 	ERR_load_crypto_strings();
 	ERR_error_string(ERR_get_error(), err);
@@ -967,7 +984,7 @@ void Crypto::logErrorExtended(string prefix) {
 
 #endif
 
-void Crypto::logError(string error) {
+void Crypto::logError(const StaticString &error) {
 	P_ERROR(error);
 }
 

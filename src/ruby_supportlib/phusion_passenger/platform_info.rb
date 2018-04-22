@@ -1,6 +1,6 @@
 # encoding: binary
 #  Phusion Passenger - https://www.phusionpassenger.com/
-#  Copyright (c) 2010-2015 Phusion Holding B.V.
+#  Copyright (c) 2010-2017 Phusion Holding B.V.
 #
 #  "Passenger", "Phusion Passenger" and "Union Station" are registered
 #  trademarks of Phusion Holding B.V.
@@ -100,7 +100,7 @@ module PhusionPassenger
                   if cache_file && #{cache_to_disk}                           #         if cache_file && #{cache_to_disk}
                     begin                                                     #           begin
                       if !File.directory?(@@cache_dir)                        #             if !File.directory?(@@cache_dir)
-                        Dir.mkdir(@@cache_dir)                                #               Dir.mkdir(@@cache_dir)
+                        FileUtils.mkdir_p(@@cache_dir)                        #               FileUtils.mkdir_p(@@cache_dir)
                       end                                                     #             end
                       File.open(cache_file, "wb") do |f|                      #             File.open(cache_file, "wb") do |f|
                         f.write(Marshal.dump(#{variable_name}))               #               f.write(Marshal.dump(@@memoized_httpd))
