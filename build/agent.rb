@@ -64,6 +64,7 @@ let(:agent_ldflags) do
   result << '-lselinux' if USE_SELINUX
   # Extra linker flags for backtrace_symbols() to generate useful output (see agent/Base.cpp).
   result << PlatformInfo.export_dynamic_flags
+  result << '-lcgroup'
   # Enable dead symbol elimination on OS X.
   result << '-Wl,-dead_strip' if PlatformInfo.os_name_simple == 'macosx'
   result.join(' ')

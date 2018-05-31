@@ -357,16 +357,13 @@ COMMON_LIBRARY = CommonLibraryBuilder.new do
   define_component 'UnionStationFilterSupport.o',
     :source   => 'UnionStationFilterSupport.cpp',
     :category => :union_station_filter
-<<<<<<< HEAD
   define_component 'Utils/Cgroup.o',
-  	:source   => 'Utils/Cgroup.cpp',
-	:category => :base,
-	:optimize => :very_heavy
-=======
+    :source   => 'Utils/Cgroup.cpp',
+    :category => :base,
+    :optimize => :very_heavy
   define_component 'ProcessManagement/Ruby.o',
     :source   => 'ProcessManagement/Ruby.cpp',
     :category => :process_management_ruby
->>>>>>> release-5.1.12
 end
 
 # A subset of the objects are linked to the Nginx binary. This defines

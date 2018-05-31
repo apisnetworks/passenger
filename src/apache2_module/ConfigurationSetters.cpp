@@ -434,11 +434,10 @@ cmd_passenger_lve_min_uid(cmd_parms *cmd, void *pcfg, const char *arg) {
 	}
 }
 
-	
-		static const char *
-		cmd_passenger_cgroup(cmd_parms *cmd, void *pcfg, const char *arg) {
-			DirConfig *config = (DirConfig *) pcfg;
-			config->cgroup = arg;
-			return NULL;
-		}
-	
+static const char *
+cmd_passenger_cgroup(cmd_parms *cmd, void *pcfg, const char *arg) {
+	DirConfig *config = (DirConfig *) pcfg;
+	config->cgroup = arg;
+	return NULL;
+}
+
