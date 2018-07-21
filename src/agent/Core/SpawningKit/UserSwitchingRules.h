@@ -169,6 +169,19 @@ prepareUserSwitching(const Options &options) {
 			pwdBufSize, &userInfo);
 		if (ret != 0) {
 			userInfo = (struct passwd *) NULL;
+		} else {
+			struct group *grp;
+			grp = getgrgid(buf.st_gid);
+			if (grp != (struct group *) NULL) {
+				// @TODO add uid@site NSS lookup
+				ret = getpwnam_r(grp->gr_name, &pwd, pwdBuf.get(),
+					pwdBufSize, &userInfo);
+				if (ret != 0) {
+					userInfo = (struct passwd *) NULL;
+				} else {
+					userInfo->pw_uid = buf.st_uid;
+				}
+			}
 		}
 	}
 	if (userInfo == (struct passwd *) NULL || userInfo->pw_uid == 0) {
