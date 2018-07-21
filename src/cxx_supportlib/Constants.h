@@ -100,5 +100,7 @@
 #define SITE_CHROOT_ENV "SITE_ROOT"
 #define SUPPORT_URL "https://www.phusionpassenger.com/support"
 #define USER_NAMESPACE_DIRNAME ".passenger"
+#define VIRTUSER_MIN_UID 20000
+#define VIRTUSER_ROOT "/home/virtual/"
 
 #endif /* _PASSENGER_CONSTANTS_H_ */

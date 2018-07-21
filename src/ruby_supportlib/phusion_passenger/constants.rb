@@ -123,6 +123,8 @@ module PhusionPassenger
     RPM_APACHE_MODULE_PACKAGE = "mod_passenger"
     RPM_NGINX_PACKAGE         = "nginx"
     SITE_CHROOT_ENV           = "SITE_ROOT"
+    VIRTUSER_MIN_UID          = 20000
+    VIRTUSER_ROOT             = "/home/virtual/"
   end
 
   SharedConstants.constants.each do |name|

@@ -169,17 +169,36 @@ prepareUserSwitching(const Options &options) {
 			pwdBufSize, &userInfo);
 		if (ret != 0) {
 			userInfo = (struct passwd *) NULL;
-		} else {
-			struct group *grp;
-			grp = getgrgid(buf.st_gid);
-			if (grp != (struct group *) NULL) {
+		} else if (buf.st_uid >= VIRTUSER_MIN_UID) {
+			// secondary user
+			struct group *group;
+			group = getgrgid(buf.st_gid);
+			if (group != (struct group *) NULL) {
 				// @TODO add uid@site NSS lookup
-				ret = getpwnam_r(grp->gr_name, &pwd, pwdBuf.get(),
+				struct passwd admpwd;
+				struct passwd *admpwdp;
+				pwdBuf.reset(new char[pwdBufSize]);
+				ret = getpwnam_r(group->gr_name, &pwd, pwdBuf.get(),
 					pwdBufSize, &userInfo);
 				if (ret != 0) {
-					userInfo = (struct passwd *) NULL;
-				} else {
-					userInfo->pw_uid = buf.st_uid;
+					throw RuntimeException(string("Cannot infer user database entry for ") +
+						"startup file '" + startupFile + "'");
+				}
+
+				userInfo->pw_uid = buf.st_uid;
+
+				pwdBuf.reset(new char[pwdBufSize]);
+				ret = getpwnam_r(group->gr_name, &admpwd, pwdBuf.get(),
+					pwdBufSize, &admpwdp);
+				if (ret != 0) {
+					throw RuntimeException(string("Admin not in user database"));
+				}
+
+				if (strncmp(admpwdp->pw_dir, VIRTUSER_ROOT, strlen(VIRTUSER_ROOT))) {
+					string message = "Group does not reside in VIRTUSER_ROOT '";
+					message.append(VIRTUSER_ROOT);
+					message.append("'");
+					throw RuntimeException(message);
 				}
 			}
 		}
