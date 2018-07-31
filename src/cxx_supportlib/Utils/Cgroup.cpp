@@ -36,9 +36,10 @@
 
 namespace Passenger {
 
-    void freeControlGroup(struct cgroup *mygroup) {
+    void freeControlGroup(struct cgroup **mygroup) {
         if (mygroup != NULL) {
-            cgroup_free(&mygroup);
+            cgroup_free(mygroup);
+            *mygroup = NULL;
         }
     }
 
@@ -63,6 +64,7 @@ namespace Passenger {
             );
             return 1;
         }
+        freeControlGroup(&mygroup);
         return 0;
     }
 
@@ -79,11 +81,10 @@ namespace Passenger {
         }
 
 
-        /*if (0 != setControlGroup(cgmount.c_str(), mygroup)) {
+        if (0 != setControlGroup(cgmount.c_str(), mygroup)) {
             // cleanup?
             return NULL;
-        }*/
-        cgroup_free(&mygroup);
+        }
 
         return 0;
     }
