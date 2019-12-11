@@ -129,8 +129,9 @@ private:
 			case CURLE_COULDNT_RESOLVE_PROXY:
 				error.append(" for proxy address " + proxyAddress);
 				break;
-
+#if (CURLE_SSL_CACERT != CURLE_PEER_FAILED_VERIFICATION)
 			case CURLE_SSL_CACERT:
+#endif
 				// Peer certificate cannot be authenticated with given / known CA certificates. This would happen
 				// for MITM but could also be a truststore issue.
 			case CURLE_PEER_FAILED_VERIFICATION:
