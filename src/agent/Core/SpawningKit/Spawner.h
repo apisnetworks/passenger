@@ -1009,28 +1009,32 @@ protected:
 		return;
 	}
 
-	void setChroot(const SpawnPreparationInfo &info) {
-		if (info.chrootDir != "/") {
-			int ret = chroot(info.chrootDir.c_str());
-			if (ret == -1) {
-				int e = errno;
-				fprintf(stderr, "Cannot chroot() to '%s': %s (errno=%d)\n",
-					info.chrootDir.c_str(),
-					strerror(e),
-					e);
-				fflush(stderr);
-				_exit(1);
-			}
+	void setChroot(SpawnPreparationInfo &preparation) {
+		if (preparation.chrootDir == "/") {
+			return;
+		}
 
-			ret = chdir("/");
-			if (ret == -1) {
-				int e = errno;
-				fprintf(stderr, "Cannot chdir(\"/\") inside chroot: %s (errno=%d)\n",
-					strerror(e),
-					e);
-				fflush(stderr);
-				_exit(1);
-			}
+		if (-1 == chroot(preparation.chrootDir.c_str())) {
+			int e = errno;
+			fprintf(stderr, "Cannot chroot() to '%s': %s (errno=%d)\n",
+				preparation.chrootDir.c_str(),
+				strerror(e),
+				e);
+			fflush(stderr);
+			_exit(1);
+		}
+		if (-1 == chdir("/")) {
+			int e = errno;
+			fprintf(stderr, "Cannot chdir(\"/\") inside chroot: %s (errno=%d)\n",
+				strerror(e),
+				e);
+			fflush(stderr);
+			_exit(1);
+		}
+
+		// update getpwnam() info in jail
+		if (preparation.userSwitching.enabled) {
+			inferUserParameters(preparation.userSwitching);
 		}
 	}
 

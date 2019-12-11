@@ -61,40 +61,45 @@ struct UserSwitchingInfo {
 	boost::shared_array<char> lveUserPwdStrBuf;
 };
 
+inline void inferUserParameters(UserSwitchingInfo &info) {
+	struct passwd &pwd = info.lveUserPwd;
+	boost::shared_array<char> &strings = info.lveUserPwdStrBuf;
+	struct passwd *userInfo;
+	long bufSize;
+
+	// _SC_GETPW_R_SIZE_MAX is not a maximum:
+	// http://tomlee.co/2012/10/problems-with-large-linux-unix-groups-and-getgrgid_r-getgrnam_r/
+	bufSize = std::max<long>(1024 * 128, sysconf(_SC_GETPW_R_SIZE_MAX));
+	strings.reset(new char[bufSize]);
+
+	userInfo = (struct passwd *) NULL;
+	if (getpwuid_r(info.uid, &pwd, strings.get(), bufSize, &userInfo) != 0
+	 || userInfo == (struct passwd *) NULL)
+	{
+		throw RuntimeException("Cannot get user database entry for user " +
+			getProcessUsername() + "; it looks like your system's " +
+			"user database is broken, please fix it.");
+	}
+
+	info.username = userInfo->pw_name;
+	info.groupname = getGroupName(userInfo->pw_gid);
+	info.home = userInfo->pw_dir;
+	info.shell = userInfo->pw_shell;
+}
+
 inline UserSwitchingInfo
 prepareUserSwitching(const Options &options) {
 	TRACE_POINT();
 	UserSwitchingInfo info;
 
 	if (geteuid() != 0) {
-		struct passwd &pwd = info.lveUserPwd;
-		boost::shared_array<char> &strings = info.lveUserPwdStrBuf;
-		struct passwd *userInfo;
-		long bufSize;
-
-		// _SC_GETPW_R_SIZE_MAX is not a maximum:
-		// http://tomlee.co/2012/10/problems-with-large-linux-unix-groups-and-getgrgid_r-getgrnam_r/
-		bufSize = std::max<long>(1024 * 128, sysconf(_SC_GETPW_R_SIZE_MAX));
-		strings.reset(new char[bufSize]);
-
-		userInfo = (struct passwd *) NULL;
-		if (getpwuid_r(geteuid(), &pwd, strings.get(), bufSize, &userInfo) != 0
-		 || userInfo == (struct passwd *) NULL)
-		{
-			throw RuntimeException("Cannot get user database entry for user " +
-				getProcessUsername() + "; it looks like your system's " +
-				"user database is broken, please fix it.");
-		}
-
 		info.enabled = false;
-		info.username = userInfo->pw_name;
-		info.groupname = getGroupName(userInfo->pw_gid);
-		info.home = userInfo->pw_dir;
-		info.shell = userInfo->pw_shell;
 		info.uid = geteuid();
 		info.gid = getegid();
 		info.ngroups = 0;
 		info.mygroup = (struct cgroup *)NULL;
+		inferUserParameters(info);
+
 		return info;
 	}
 
