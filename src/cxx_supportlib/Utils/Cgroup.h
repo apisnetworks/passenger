@@ -30,14 +30,18 @@
 #define _PASSENGER_CGROUP_H_
 
 #include <libcgroup.h>
+#include <stdlib.h>
+#include <Utils/StrIntUtils.h>
 
 namespace Passenger {
+	struct CgroupControllerInfo {
+		uid_t uid;
+		gid_t gid;
+		string cgname;
+	};
 
-    void freeControlGroup(struct cgroup *mygroup);
-
-    static int setControlGroup(const char *cgname, struct cgroup *mygroup);
-
-    struct cgroup* initializeControlGroup(const char *cgname);
+    int initializeControlGroup(const CgroupControllerInfo &info);
+    int assignCgroup(const char* cgname);
 
 } // namespace Passenger
 

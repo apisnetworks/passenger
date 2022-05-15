@@ -198,13 +198,12 @@ public:
 			dup2(adminSocketCopy, 1);
 			dup2(errorPipeCopy, 2);
 			closeAllFileDescriptors(2);
-			prepareControlGroup(preparation, options.cgroup);
 			setChroot(preparation);
+			prepareControlGroup(preparation.userSwitching, options.cgroup);
 			setUlimits(options);
 			switchUser(preparation);
 			setWorkingDirectory(preparation);
 			execvp(args[0], (char * const *) args.get());
-			releaseControlGroupFromSpawn(preparation);
 
 			int e = errno;
 			printf("!> Error\n");

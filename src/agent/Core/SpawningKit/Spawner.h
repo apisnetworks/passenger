@@ -987,25 +987,20 @@ protected:
 		}
 	}
 
-	void prepareControlGroup(SpawnPreparationInfo &info, const string cgname) {
-		struct cgroup *tmp;
-		if (cgname == "") {
-			return;
+	void prepareControlGroup(UserSwitchingInfo &userSwitching, const string cgname) {
+		int ret;
+		CgroupControllerInfo cginfo;
+		cginfo.cgname = cgname.c_str();
+
+		if (userSwitching.enabled) {
+			cginfo.uid = userSwitching.uid;
+			cginfo.gid = userSwitching.gid;
 		}
 
-		if (NULL == (tmp = initializeControlGroup(cgname.c_str()))) {
-			fprintf(stderr,"no cgroup set!");
-			return;
+		if (0 != (ret = initializeControlGroup(cginfo))) {
+			fprintf(stderr,"no cgroup set! errno=%d errmsg=%s", ret, cgroup_strerror(ret));
 		}
-		info.userSwitching.mygroup = tmp;
-		return;
-	}
 
-	void releaseControlGroupFromSpawn(SpawnPreparationInfo &info) {
-		UserSwitchingInfo *user = &info.userSwitching;
-		if (NULL != user->mygroup) {
-			//freeControlGroup(&user.mygroup);
-		}
 		return;
 	}
 

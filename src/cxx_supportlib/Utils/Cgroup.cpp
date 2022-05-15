@@ -29,65 +29,58 @@
 #ifndef _PASSENGER_CGROUP_CPP_
 #define _PASSENGER_CGROUP_CPP_
 
-#include <stdlib.h>
-#include <libcgroup.h>
-#include <Utils/StrIntUtils.h>
 #include <Utils/Cgroup.h>
 
 namespace Passenger {
+	int initializeControlGroup(const CgroupControllerInfo &info) {
+		int ret;
+		pid_t pid = getpid();
 
-    void freeControlGroup(struct cgroup **mygroup) {
-        if (mygroup != NULL) {
-            cgroup_free(mygroup);
-            *mygroup = NULL;
-        }
+		if (0 == info.uid && info.cgname.empty()) {
+			return 0;
+		}
+
+		if ((ret = cgroup_init()) > 0) {
+			return ret;
+		}
+
+		if (info.cgname.empty()) {
+			return cgroup_change_cgroup_uid_gid_flags(
+					info.uid, info.gid, pid, 0
+			);
+		}
+
+		return assignCgroup(info.cgname.c_str());
     }
 
-    static int
-    setControlGroup(const char *cgname, struct cgroup *mygroup) {
-        int ret;
-        if (NULL == (mygroup = cgroup_new_cgroup(cgname))) {
-            fprintf(stderr, "*** ERROR ***: cannot allocate cgroup %s resources",
-                    cgname
-            );
-            return 1;
-        } else if (0 < (ret = cgroup_get_cgroup(mygroup))) {
-            fprintf(stderr, "*** ERROR ***: cannot get cgroup %s: %s",
-                    cgname,
-                    cgroup_strerror(ret)
-            );
-            return 1;
-        } else if (0 < (ret = cgroup_attach_task(mygroup))) {
-            fprintf(stderr, "*** ERROR ***: cannot assign to cgroup %s: %s",
-                    cgname,
-                    cgroup_strerror(ret)
-            );
-            return 1;
-        }
-        freeControlGroup(&mygroup);
-        return 0;
-    }
 
-    struct cgroup* initializeControlGroup(const char* cgname) {
-        int ret;
-        struct cgroup *mygroup;
-        string cgmount = "/";
-        cgmount.append(cgname);
-        if ((ret = cgroup_init()) > 0) {
-            fprintf(stderr, "*** ERROR ***: failed to initialize cgroup: %s",
-                    cgroup_strerror(ret)
-            );
-            return NULL;
-        }
+	int assignCgroup(const char* cgname) {
+		struct cgroup *mygroup;
+		int ret;
 
-
-        if (0 != setControlGroup(cgmount.c_str(), mygroup)) {
-            // cleanup?
-            return NULL;
-        }
-
-        return 0;
-    }
+		if (NULL == (mygroup = cgroup_new_cgroup(cgname))) {
+			fprintf(stderr, "*** ERROR ***: cannot allocate cgroup %s resources",
+					cgname
+			);
+			return 1;
+		} else if (0 < (ret = cgroup_get_cgroup(mygroup))) {
+			cgroup_free(&mygroup);
+			fprintf(stderr, "*** ERROR ***: cannot get cgroup %s: %s",
+					cgname,
+					cgroup_strerror(ret)
+			);
+			return 1;
+		} else if (0 < (ret = cgroup_attach_task(mygroup))) {
+			cgroup_free(&mygroup);
+			fprintf(stderr, "*** ERROR ***: cannot assign to cgroup %s: %s",
+					cgname,
+					cgroup_strerror(ret)
+			);
+			return 1;
+		}
+		cgroup_free(&mygroup);
+		return 0;
+	}
 
 
 } // namespace Passenger

@@ -55,7 +55,6 @@ struct UserSwitchingInfo {
 	gid_t gid;
 	int ngroups;
 	boost::shared_array<gid_t> gidset;
-	struct cgroup *mygroup;
 
 	struct passwd lveUserPwd, *lveUserPwdComplete;
 	boost::shared_array<char> lveUserPwdStrBuf;
@@ -97,7 +96,6 @@ prepareUserSwitching(const Options &options) {
 		info.uid = geteuid();
 		info.gid = getegid();
 		info.ngroups = 0;
-		info.mygroup = (struct cgroup *)NULL;
 		inferUserParameters(info);
 
 		return info;
@@ -284,7 +282,6 @@ prepareUserSwitching(const Options &options) {
 	info.shell = userInfo->pw_shell;
 	info.uid = userInfo->pw_uid;
 	info.gid = groupId;
-	info.mygroup = (struct cgroup*) NULL;
 	#if !defined(HAVE_GETGROUPLIST) && (defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__))
 		#define HAVE_GETGROUPLIST
 	#endif
