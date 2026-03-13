@@ -23,8 +23,13 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 
-import sys, os, re, imp, threading, signal, traceback, socket, select, struct, logging, errno
+import sys, os, re, threading, signal, traceback, socket, select, struct, logging, errno
 import tempfile
+
+try:
+	import importlib.util
+except ImportError:
+	import imp
 
 options = {}
 
@@ -59,7 +64,15 @@ def load_app():
 
 	sys.path.insert(0, os.getcwd())
 	startup_file = options.get('startup_file', 'passenger_wsgi.py')
-	return imp.load_source('passenger_wsgi', startup_file)
+	module_name = 'passenger_wsgi'
+
+	if 'importlib.util' in sys.modules:
+		spec = importlib.util.spec_from_file_location(module_name, startup_file)
+		module = importlib.util.module_from_spec(spec)
+		spec.loader.exec_module(module)
+		return module
+	else:
+		return imp.load_source(module_name, startup_file)
 
 def create_server_socket():
 	global options
